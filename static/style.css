@@ -1,0 +1,12 @@
+body {
+    font-family: sans-serif;
+    margin: 40px;
+}
+table, th, td {
+    border: 1px solid #999;
+    border-collapse: collapse;
+    padding: 8px;
+}
+h1 {
+    color: darkgreen;
+}

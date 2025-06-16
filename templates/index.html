@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Game Tracker</title>
+    <!-- Link to custom CSS file -->
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Leaflet CSS (keep this in <head> ideally) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- Awesome Markers (for colored icons) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.js"></script>
+</head>
+
+<body>
+<!-- Page Header -->
+    <h1>Game Sightings</h1>
+
+    <!-- Link to Add New Sighting Form -->
+    <a href="/add">Add New Sighting</a>
+
+    <!-- Dropdown for filtering by animal -->
+    <!-- Filer + Sort Form -->
+    <!-- This form filters the table based on selected animal and sorts sightings by date -->
+    <form method="GET" action="/">
+        <!-- Filter by Animal Dropdown -->
+        <label for="animal">Filter by Animal</label>
+        <select name="animal">
+            <option value="">-- All Animals --</option>
+            {% for animal in unique_animals %}
+            <option value="{{ animal }}" {% if animal_filter == animal %}selected{% endif %}>{{ animal }}</option>
+            {% endfor %}
+        </select>
+
+    <label for="sort">Sort by Date:</label>
+    <select name="sort">
+        <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>Newest First</option>
+        <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>Oldest First</option>
+    </select>
+
+    <button type="submit">Apply</button>
+    </form>
+
+    <!-- Form for deleting selected sightings -->
+    <!-- Allow user to select sightings and delete them -->
+    <form method="POST" action="/delete">
+    <table border="1">
+        <!--Table header -->
+        <thead>
+        <tr>
+            <th>Select</th>
+            <th>Animal</th>
+            <th>Date/Time</th>
+            <th>Weather</th>
+            <th>Wind</th>
+            <th>Wind Speed</th>
+            <th>Wind Direction</th>
+            <th>Humidity</th>
+            <th>Temperature</th>
+            <th>Location</th>
+            <th>Notes</th>
+            <th>Marker</th> <!-- shows marker color -->
+        </tr>
+        </thead>
+
+        <!-- Table Rows (Populated with Sightings) -->
+        <tbody>
+        {% for sighting in sightings %}
+        <tr>
+            <td><input type="checkbox" name="delete_ids" value="{{ sighting[0] }}"></td>
+            <td>{{ sighting[1] }}</td> <!-- animal -->
+            <td>{{ sighting[2] }}</td> <!-- date_time -->
+            <td>{{ sighting[3] }}</td> <!-- weather -->
+            <td>{{ sighting[4] }}</td> <!-- wind -->
+            <td>{{ sighting[5] }}</td> <!-- wind_Speed -->
+            <td>{{ sighting[6] }}</td> <!-- wind_direction -->
+            <td>{{ sighting[7] }}</td> <!-- humidity -->
+            <td>{{ sighting[8] }}</td> <!-- temperature -->
+            <td>{{ sighting[9] }}</td> <!-- location -->
+            <td>{{ sighting[10] }}</td> <!-- notes -->
+            <td>
+                <div style="width: 20px; height: 20px; background-color: {{ sighting[11] }}; border: 1px solid #333;"></div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+        <!-- Delete Submit Button for Deletion -->
+     <button type="submit" onclick="return confirm('Are you sure you want to delete the selected sightings?')">Delete Selected</button>
+    </form>
+
+<!-- Map Section -->
+<!-- Displays all sightings on a leaflet map -->
+<h2>Map of Sightings</h2>
+<div id="map" style="height: 400px;"></div>
+
+
+
+<!-- Leaflet JS for interactive map features -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+    // Sightings data passed from Flask as JSON
+    const sightings = {{ sightings|tojson }};
+
+    // Initialize map centered on MN area
+    const map = L.map('map').setView([45, -93], 6);
+
+    // Add OpenStreetMap tiles to the map
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    // Loop through all sightings and add markers
+    sightings.forEach(s => {
+        const location = s[9]; // 'location' is index 9 in the database
+        const coords = location.split(',').map(Number);
+        const markerColor = s[11] || '#2e7d32' // default if empty
+
+        if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+                L.circleMarker(coords, {
+                    radius: 10,
+                    fillColor: markerColor,
+                    color: markerColor,
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map)
+                  .bindPopup(`<strong>${s[1]}</strong><br>${s[2]}`);
+            }
+        });
+</script>
+</body>
+</html>
