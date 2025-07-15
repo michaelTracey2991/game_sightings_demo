@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Harvest Logs</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+        }
+        .modal-content {
+            margin: 10% auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 5px;
+        }
+        .modal-content img {
+            width: 100%;
+            height: auto;
+        }
+        .close {
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+<!-- link to return to home page -->
+<p><a href="{{ url_for('index') }}">← Back to Main Page</a></p>
+
+<!-- Page header -->
+<h1>Harvest Log</h1>
+
+
+<!-- Link to Add Harvest -->
+<a href="{{ url_for('add_harvest') }}">Add New Harvest</a>
+
+<!-- Table to show all harvest logs -->
+<table border="1">
+    <thead>
+        <tr>
+            <th>Animal</th>
+            <th>Date/Time</th>
+            <th>Weapon</th>
+            <th>Caliber</th>
+            <th>Broadhead</th>
+            <th>Distance Traveled</th>
+            <th>Notes</th>
+            <th>Photo</th>
+            <th>Marker</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <!-- Set latest_id for highlighting -->
+    <tbody>
+        {% for h in harvests %}
+        <!-- If this is the newest harvest, highlight the row  -->
+         <tr {% if h.id == latest_id %}style="background-color:#f5f5f5;"{% endif %}>
+            <td>{{ h.animal }}</td>
+            <td>{{ h.date_time }}</td>
+            <td>{{ h.weapon_type }}</td>
+            <td>{{ h.caliber }}</td>
+            <td>{{ h.broadhead }}</td>
+            <td>{{ h.distance_traveled }} yards</td>
+            <td style="max-width: 200px; word-wrap: break-word;">{{ h.notes }}</td>
+            <td>
+                {% if h.photo_filename %}
+                    <img src="{{ url_for('static', filename='uploads/' ~ h.photo_filename) }}"
+                     width="25"
+                     onclick="openModal('{{ url_for('static', filename='uploads/' ~ h.photo_filename) }}', '{{ h.animal }}', '{{ h.date_time }}')">
+                {% else %}
+                    No Photo
+                {% endif %}
+            </td>
+            <td>
+                <div style="width: 20px; height: 20px; background-color: {{ h.marker_color }}; border: 1px solid #333;"></div>
+            </td>
+             <td>
+                 <!-- New View Button -->
+                 <a href="{{ url_for('view_harvest', harvest_id=h.id) }}">View</a>
+             </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Harvest Map -->
+<h2>Shot & Recovery Locations</h2>
+<div id="map" style="height: 400px;"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+    const harvests = {{ harvests_json | tojson }};
+    </script>
+
+<script>
+
+    const map = L.map('map').setView([45, -93], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    harvests.forEach(h => {
+        const color = h.marker_color || '#3388ff';
+
+        // Shot Location Marker
+        if (!isNaN(h.shot_lat) && !isNaN(h.shot_lng)) {
+            L.circleMarker([h.shot_lat, h.shot_lng], {
+                radius: 6,
+                fillColor: color,
+                color: color,
+                weight: 1,
+                fillOpacity: 0.9
+            }).addTo(map).bindPopup(`<b>Shot</b><br>${h.animal}<br>${h.date_time}`);
+        }
+
+        // Recovery Location Marker
+        if (!isNaN(h.recovery_lat) && !isNaN(h.recovery_lng)) {
+            L.circleMarker([h.recovery_lat, h.recovery_lng], {
+                radius: 6,
+                fillColor: color,
+                color: color,
+                weight: 1,
+                fillOpacity: 0.4
+            }).addTo(map).bindPopup(`<b>Recovery</b><br>${h.animal}<br>${h.date_time}`);
+        }
+    });
+</script>
+
+<!-- Modal for full-size photo -->
+<div id="photoModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <img id="modalImage" src="" alt="Full Image">
+        <p id="modalDetails"></p>
+    </div>
+</div>
+
+<script>
+    function openModal(imageUrl, animal, dateTime) {
+        document.getElementById('modalImage').src = imageUrl;
+        document.getElementById('modalDetails').textContent = `${animal} - ${dateTime}`;
+        document.getElementById('photoModal').style.display = 'block';
+    }
+
+    function closeModal() {
+        document.getElementById('photoModal').style.display = 'none';
+    }
+
+    window.onclick = function(event) {
+        const modal = document.getElementById('photoModal');
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    };
+</script>
+
+</body>
+</html>

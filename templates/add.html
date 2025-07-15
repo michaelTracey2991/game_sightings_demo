@@ -1,326 +1,287 @@
+<!--
+add.html
+Template for the "Add New Sighting" page.
+Provides a user-friendly form interface to input details about wildlife sightings,
+including animal type, weather conditions, location selection via map interaction,
+and optional photo upload.
+Uses Flask-WTF form rendering along with JavaScript powered map integration for pin placement.
+-->
+
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Add Sighting</title>
-    <link rel="stylesheet" href="/static/style/style.css">
+    <title>Add New Sighting</title>
 
+    <!-- Styles and Leaflet Map -->
+    <link rel="stylesheet" href="/static/style/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Custom Page Layout -->
     <style>
+        .content-wrapper {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            padding: 40px;
+            gap: 40px;
+        }
+        .form-section {
+            flex: 2;
+            min-width: 300px;
+            max-width: 600px;
+        }
+        .map-section {
+            flex: 1;
+            position: sticky;
+            top: 120px;
+            align-self: flex-start;
+        }
         #map {
+            width: 100%;
             height: 400px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
             margin-top: 20px;
         }
-    </style>
 
+        /* New: Styling for validation errors */
+        .errors {
+            color: red;
+            font-size: 0.9em;
+            margin: 0 0 10px;
+            list-style: none;
+            padding: 0;
+        }
+    </style>
 </head>
 <body>
-    <h1>Add New Sighting</h1>
-    <form method="POST" action="/add">
-        <!-- Animal Dropdown -->
-        <label for="animal">Animal:</label> <!-- add the for="animal" -->
-            <select name="animal" required>
-                <option value="" disabled selected>Select animal</option>
 
-                <!-- Game Animal Type Dropdown -->
-                <optgroup label="Big Game">
-                    <option value="American Bison">American Bison</option>
-                    <option value="Black Bear">Black Bear</option>
-                    <option value="Brown Bear">Brown Bear</option>
-                    <option value="Caribou">Caribou</option>
-                    <option value="Cougar">Cougar</option>
-                    <option value="Elk">Elk</option>
-                    <option value="Moose">Moose</option>
-                    <option value="Mule Deer">Mule Deer</option>
-                    <option value="Pronghorn">Pronghorn</option>
-                    <option value="Whitetail Deer(Buck)">Whitetail Deer(Buck)</option>
-                    <option value="Whitetail Deer(Doe)">Whitetail Deer(Doe)</option>
-                    <option value="Whitetail Deer(Button Buck)">Whitetail Deer(Button Buck)</option>
-                    <option value="Wild Boar">Wild Boar</option>
-                </optgroup>
+    <h1 style="text-align: center; padding-top: 40px;">Add New Sighting</h1>
 
+    <div class="content-wrapper">
 
+        <!-- FORM SECTION -->
+        <div class="form-section">
 
-                <optgroup label="Small Game">
-                    <option value="Beaver">Beaver</option>
-                    <option value="Cottontail">Cottontail</option>
-                    <option value="Crow">Crow</option>
-                    <option value="Groundhog">Groundhog</option>
-                    <option value="Opossum">Opossum</option>
-                    <option value="Porcupine">Porcupine</option>
-                    <option value="Rabbit">Rabbit</option>
-                    <option value="Raccoon">Raccoon</option>
-                    <option value="Squirrel">Squirrel</option>
+            <!-- 🛑 FORM VALIDATION FEEDBACK (flashed from backend) -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                <ul class="errors">
+                  {% for category, message in messages %}
+                    <li>{{ message }}</li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+            {% endwith %}
 
-                </optgroup>
+            <!-- 📋 FORM START -->
+            <form method="POST" enctype="multipart/form-data">
+                {{ form.hidden_tag() }}
 
-                <optgroup label="Upland Birds">
-                    <option value="Bobwhite Quail">Bobwhite Quail</option>
-                    <option value="Chukar Partridge">Chukar Partridge</option>
-                    <option value="Grouse(Ruffed, Sage, Spruce, Sharp-Tailed)">Grouse (Ruffed, Sage, Spruce, Sharp-Tailed)</option>
-                    <option value="Hungarian Partridge">Hungarian Partridge</option>
-                    <option value="Pheasant">Pheasant</option>
-                    <option value="Ptarmigan">Ptarmigan</option>
-                    <option value="Turkey">Turkey</option>
-                    <option value="Woodcock">Woodcock</option>
-                </optgroup>
-
-                <optgroup label="Waterfowl">
-                    <option value="Duck">Duck</option>
-                    <option value="Goose">Goose</option>
-                    <option value="Brant">Brant</option>
-                    <option value="Mergansers">Mergansers</option>
-                </optgroup>
-
-                <optgroup label="Varmints & Predators">
-                    <option value="Coyote">Coyote</option>
-                    <option value="Fox">Fox</option>
-                    <option value="Bobcat">Bobcat</option>
-                    <option value="Nutria">Nutria</option>
-                </optgroup>
-            </select>
-            <br>
-
-        <!-- Date/Time Selection Box -->
-        <label>Date/Time: <input type="datetime-local" name="date_time"></label><br>
-
-        <!-- Weather Condition Dropdown + Optional Text -->
-        <label>Weather:
-            <select id="weather-select" name="weather" onchange="checkOther(this, 'weather-other')">
-                <option value="" disabled selected>Select weather</option>
-                <option value="Sunny">Sunny</option>
-                <option value="Partly Cloudy">Partly Cloudy</option>
-                <option value="Cloudy">Cloudy</option>
-                <option value="Overcast">Overcast</option>
-                <option value="Foggy">Foggy</option>
-                <option value="Rain">Rain</option>
-                <option value="Light Rain">Light Rain</option>
-                <option value="Thunderstorms">Thunderstorms</option>
-                <option value="Snow">Snow</option>
-                <option value="Light Snow">Light Snow</option>
-                <option value="Snowstorm">Snowstorm</option>
-                <option value="Windy">Windy</option>
-            </select>
-            </label>
-            <input type="text" id="weather-other" name="weather_other" placeholder="Enter weather" style="display:none;">
-            <br>
-
-        <!-- Wind Type Dropdown + Optional Text -->
-        <label>Wind Type:
-            <select id="wind-select" name="wind" onchange="checkOther(this, 'wind-other')">
-                <option value="" disabled selected>Select wind</option>
-                <option value="Calm">Calm</option>
-                <option value="Light Breeze">Light Breeze</option>
-                <option value="Breezy">Breezy</option>
-                <option value="Windy">Windy</option>
-                <option value="Gusty">Gusty</option>
-                <option value="Strong Wind">Strong Wind</option>
-                <option value="Other">Other</option>
-            </select>
-        </label>
-        <input type="text" id="wind-other" name="wind_other" placeholder="Enter wind description" style="display:none;">
-        <br>
-
-        <!-- Wind Speed Dropdown -->
-        <label>Wind Speed (mph):
-            <select name="wind_speed">
-                <option value="" disabled selected>Select wind speed</option>
-                {% for i in range(0, 55, 5) %}
-                <option value="{{ i }}">{{ i }} mph</option>
-                {% endfor %}
-                <option value="55+">55+ mph</option>
-            </select>
-        </label>
-            <br>
-
-        <!-- Wind Direction Dropdown -->
-            <label>Wind Direction:
-                <select name="wind_direction">
-                    <option value="" disabled selected>Select wind direction</option>
-                    <option value="N">North</option>
-                    <option value="NE">Northeast</option>
-                    <option value="E">East</option>
-                    <option value="SE">Southeast</option>
-                    <option value="South">South</option>
-                    <option value="SW">Southwest</option>
-                    <option value="W">West</option>
-                    <option value="NW">Northwest</option>
-                    <option value="Variable">Variable</option>
+                <!-- 🐾 Animal Dropdown -->
+                <label for="animal">Animal:</label>
+                <select name="{{ form.animal.name }}" id="animal" required>
+                    <option value="" disabled {% if not form.animal.data %}selected{% endif %}>Select animal</option>
+                    <optgroup label="Big Game">
+                        {% for a in ["American Bison", "Black Bear", "Elk", "Whitetail Deer(Buck)", "Wild Boar"] %}
+                            <option value="{{ a }}" {% if form.animal.data == a %}selected{% endif %}>{{ a }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    <!-- (Add more groups as needed) -->
                 </select>
-            </label>
+                <!-- ✅ FIELD-SPECIFIC VALIDATION -->
+                {% if form.animal.errors %}
+                    <ul class="errors">{% for error in form.animal.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- 🕒 Date/Time -->
+                <label for="date_time">Date/Time:</label>
+                {{ form.date_time() }}
+                {% if form.date_time.errors %}
+                    <ul class="errors">{% for error in form.date_time.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- ☀️ Weather -->
+                <label for="weather">Weather:</label>
+                <input type="text" name="{{ form.weather.name }}" id="weather" list="weather_options" value="{{ form.weather.data or '' }}">
+                <datalist id="weather_options">
+                    {% for w in ["Sunny", "Cloudy", "Rain", "Snow", "Windy"] %}
+                        <option value="{{ w }}">
+                    {% endfor %}
+                </datalist>
+                {% if form.weather.errors %}
+                    <ul class="errors">{% for error in form.weather.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- 💨 Wind Description -->
+                <label for="wind">Wind:</label>
+                <input type="text" name="{{ form.wind.name }}" id="wind" value="{{ form.wind.data or '' }}">
+                {% if form.wind.errors %}
+                    <ul class="errors">{% for error in form.wind.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- 🧭 Wind Direction -->
+                <label for="wind_direction">Wind Direction:</label>
+                <input type="text" name="{{ form.wind_direction.name }}" id="wind_direction" value="{{ form.wind_direction.data or '' }}">
+                {% if form.wind_direction.errors %}
+                    <ul class="errors">{% for error in form.wind_direction.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- 💨 Wind Speed -->
+                <label for="wind_speed">Wind Speed:</label>
+                <input type="text" name="{{ form.wind_speed.name }}" id="wind_speed" value="{{ form.wind_speed.data or '' }}">
+                {% if form.wind_speed.errors %}
+                    <ul class="errors">{% for error in form.wind_speed.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- 💧 Humidity -->
+                <label for="humidity">Humidity:</label>
+                {{ form.humidity() }}
+                {% if form.humidity.errors %}
+                    <ul class="errors">{% for error in form.humidity.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- 🌡️ Temperature -->
+                <label for="temperature">Temperature:</label>
+                {{ form.temperature() }}
+                {% if form.temperature.errors %}
+                    <ul class="errors">{% for error in form.temperature.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- 📍 Location & Geolocation -->
+                <label for="location">Location:</label>
+                {{ form.location(id='autocomplete') }}
+                <button type="button" onclick="getCurrentLocation()">📍 Use My Location</button>
+                <button type="button" onclick="enablePinDrop()">📌 Select on Map</button><br>
+                {{ form.lat(id="lat") }}
+                {{ form.lng(id="lng") }}
+                {% if form.location.errors %}
+                    <ul class="errors">{% for error in form.location.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- 📝 Notes -->
+                <label for="notes">Notes:</label>
+                {{ form.notes() }}
+                {% if form.notes.errors %}
+                    <ul class="errors">{% for error in form.notes.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- 🎯 Pin Color -->
+                <label for="marker_color">Pin Color:</label>
+                {{ form.marker_color(id="marker_color") }}
+                {% if form.marker_color.errors %}
+                    <ul class="errors">{% for error in form.marker_color.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- 📸 Photo Upload -->
+                <label for="photo">Upload Photo:</label>
+                {{ form.photo() }}
+                {% if form.photo.errors %}
+                    <ul class="errors">{% for error in form.photo.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                {% endif %}
+                <br>
+                <br>
+
+                <!-- ✅ Submit -->
+                <br><br>
+                <input type="submit" value="Save">
+            </form>
             <br>
 
-            <!-- Dropdown for Humidity -->
-            <label>Humidity (%):
-            <select name="humidity">
-                <option value="" disabled selected>Select humidity</option>
-                {% for i in range(0, 105, 5) %}
-                    <option value="{{ i }}">{{ i }}%</option>
-                {% endfor %}
-            </select>
-            </label>
-            <br>
-
-        <!-- Location Text Field -->
-            <!-- will be replaced or auto filled with map later
-        <label>Location: <input type="text" name="location"></label><br> -->
-
-        <!-- Notes Text Field -->
-        <label>Notes: <textarea name="notes"></textarea></label><br>
-
-        <!-- Select color for sighting on map in Add New Sighting page -->
-        <label>Select a color to represent the sighting on the map:</label><br>
-<button type="button" onclick="openColorDialog()">Choose Color</button>
-<input type="hidden" name="marker_color" id="marker_color" value="#2e7d32">
-<div id="color-list" style="display: none; border: 1px solid #ccc; padding: 10px; margin-top: 5px; max-width: 200px;">
-    <div onclick="selectColor('#f44336')" style="background:#f44336;color:white;padding:5px;margin:2px;cursor:pointer;">Red</div>
-    <div onclick="selectColor('#e91e63')" style="background:#e91e63;color:white;padding:5px;margin:2px;cursor:pointer;">Pink</div>
-    <div onclick="selectColor('#9c27b0')" style="background:#9c27b0;color:white;padding:5px;margin:2px;cursor:pointer;">Purple</div>
-    <div onclick="selectColor('#673ab7')" style="background:#673ab7;color:white;padding:5px;margin:2px;cursor:pointer;">Deep Purple</div>
-    <div onclick="selectColor('#3f51b5')" style="background:#3f51b5;color:white;padding:5px;margin:2px;cursor:pointer;">Indigo</div>
-    <div onclick="selectColor('#2196f3')" style="background:#2196f3;color:white;padding:5px;margin:2px;cursor:pointer;">Blue</div>
-    <div onclick="selectColor('#03a9f4')" style="background:#03a9f4;color:black;padding:5px;margin:2px;cursor:pointer;">Light Blue</div>
-    <div onclick="selectColor('#00bcd4')" style="background:#00bcd4;color:black;padding:5px;margin:2px;cursor:pointer;">Cyan</div>
-    <div onclick="selectColor('#009688')" style="background:#009688;color:white;padding:5px;margin:2px;cursor:pointer;">Teal</div>
-    <div onclick="selectColor('#4caf50')" style="background:#4caf50;color:white;padding:5px;margin:2px;cursor:pointer;">Green</div>
-    <div onclick="selectColor('#8bc34a')" style="background:#8bc34a;color:black;padding:5px;margin:2px;cursor:pointer;">Light Green</div>
-    <div onclick="selectColor('#cddc39')" style="background:#cddc39;color:black;padding:5px;margin:2px;cursor:pointer;">Lime</div>
-    <div onclick="selectColor('#ffeb3b')" style="background:#ffeb3b;color:black;padding:5px;margin:2px;cursor:pointer;">Yellow</div>
-    <div onclick="selectColor('#ffc107')" style="background:#ffc107;color:black;padding:5px;margin:2px;cursor:pointer;">Amber</div>
-    <div onclick="selectColor('#ff9800')" style="background:#ff9800;color:white;padding:5px;margin:2px;cursor:pointer;">Orange</div>
-    <div onclick="selectColor('#ff5722')" style="background:#ff5722;color:white;padding:5px;margin:2px;cursor:pointer;">Deep Orange</div>
-    <div onclick="selectColor('#795548')" style="background:#795548;color:white;padding:5px;margin:2px;cursor:pointer;">Brown</div>
-    <div onclick="selectColor('#9e9e9e')" style="background:#9e9e9e;color:black;padding:5px;margin:2px;cursor:pointer;">Gray</div>
-    <div onclick="selectColor('#607d8b')" style="background:#607d8b;color:white;padding:5px;margin:2px;cursor:pointer;">Blue Gray</div>
-    <div onclick="selectColor('#000000')" style="background:#000000;color:white;padding:5px;margin:2px;cursor:pointer;">Black</div>
-</div>
-<span id="selected-color" style="display: inline-block; width: 20px; height: 20px; background-color: #2e7d32; vertical-align: middle; border: 1px solid #000;"></span>
-
-<script>
-    function openColorDialog() {
-        const colorList = document.getElementById("color-list");
-        colorList.style.display = colorList.style.display == "none" ? "block" : "none";
-    }
-
-    function selectColor(colorCode) {
-        document.getElementById("marker_color").value = colorCode;
-        document.getElementById("selected-color").style.backgroundColor = colorCode;
-        document.getElementById("color-list").style.display = "none";
-    }
-</script>
+            <!-- 🔙 Back link -->
+            <a href="{{ url_for('index') }}">← Back</a>
+        </div>
         <br>
 
-        <!-- Autocomplete map search | GPS | Map UI -->
-        <label>Location:
-            <input id="autocomplete" type="text" name="location" placeholder="Start typing or use GPS" size="50">
-        </label>
-        <button type="button" onclick="getCurrentLocation()">📍 Use My Location</button>
-        <input type="hidden" name="lat" id="lat">
-        <input type="hidden" name="lng" id="lng">
-        <div id="map"></div>
+        <!-- MAP SECTION (Leaflet) -->
+        <div class="map-section">
+            <div id="map"></div>
+        </div>
+    </div>
 
-        <!-- Submit button -->
-        <button type="submit">Save</button>
-        <br>
-
-        {{ form.hidden_tag() }}
-
-    </form>
-
-    <!-- Back link -->
-    <a href="/">Back</a>
-
-    <!-- JS for showing other fields -->
+    <!-- 📍 MAP SCRIPT -->
     <script>
-        function checkOther(selectElem, otherInputId) {
-            const otherInput = document.getElementById(otherInputId);
-            if (selectElem.value == "Other") {
-            otherInput.style.display = "inline-block";
-            otherInput.required = true;
-        } else {
-            otherInput.style.display = "none";
-            otherInput.required = false;
-        }
-    }
-    </script>
+        const map = L.map('map').setView([45.0, -93.0], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
 
-    <!-- Google Mpas + Autocomplete + GPS Location -->
-    <script>
-        let map;
         let marker;
+        let pinDropEnabled = false;
 
-        function initMap() {
-            const defaultLatLng = { lat: 45.0, lng: -93.0 }; // Default to Minnesota - CHANGE FOR USER ACCOUNT PREFERENCE LATER
-
-            map = new google.maps.Map(document.getElementById("map"), {
-                center: defaultLatLng,
-                zoom: 7,
-            });
-
-        marker = new google.maps.Marker({
-            map: map,
-            position: defaultLatLng,
-            draggable: true
+        map.on('click', function (e) {
+            if (!pinDropEnabled) return;
+            const { lat, lng } = e.latlng;
+            document.getElementById("lat").value = lat;
+            document.getElementById("lng").value = lng;
+            document.getElementById("autocomplete").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'custom-icon',
+                    html: `<div style="background:${document.getElementById("marker_color").value};width:12px;height:12px;border-radius:50%;"></div>`
+                })
+            }).addTo(map);
         });
 
-        // Update hidden fields when marker is moved
-        google.maps.event.addListener(marker, 'dragend', function () {
-            const pos = marker.getPosition();
-            document.getElementById("lat").value = pos.lat();
-            document.getElementById("lng").value = pos.lng();
+        document.getElementById("marker_color").addEventListener("input", function () {
+            if (marker) {
+                const lat = marker.getLatLng().lat;
+                const lng = marker.getLatLng().lng;
+                map.removeLayer(marker);
+                marker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'custom-icon',
+                        html: `<div style="background:${this.value};width:12px;height:12px;border-radius:50%;"></div>`
+                    })
+                }).addTo(map);
+            }
         });
 
-        // Autocomplete input
-        const input = document.getElementById("autocomplete");
-        const autocomplete = new google.maps.places.Autocomplete(input);
-        autocomplete.bindTo("bounds", map);
-
-        autocomplete.addListener("place_changed", () => {
-            const place = autocomplete.getPlace();
-            if (!place.geometry) return;
-
-            map.setCenter(place.geometry.location);
-            map.setZoom(13);
-
-            marker.setPosition(place.geometry.location);
-            document.getElementById("lat").value = place.geometry.location.lat();
-            document.getElementById("lng").value = place.geometry.location.lng();
-        });
-    }
-
-    function getCurrentLocation() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const pos = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude,
-                    };
-                    map.setCenter(pos);
-                    map.setZoom(13);
-                    marker.setPosition(pos);
-                    document.getElementById("lat").value = pos.lat;
-                    document.getElementById("lng").value = pos.lng;
-
-                    // Optionally reverse geocode and fill input
-                    const geocoder = new google.maps.Geocoder();
-                    geocoder.geocode({ location: pos }, (results, status) => {
-                        if (status === "OK" && results[0]) {
-                            document.getElementById("autocomplete").value = results[0].formatted.address;
-                        }
-                    });
-                },
-                () => {
-                    alert("Unable to retrieve your location.");
-                }
-            );
-        } else {
-            alert("Geolocation is not supported by your browser.");
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function (position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    document.getElementById("lat").value = lat;
+                    document.getElementById("lng").value = lng;
+                    document.getElementById("autocomplete").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                    map.setView([lat, lng], 13);
+                    if (marker) map.removeLayer(marker);
+                    marker = L.marker([lat, lng]).addTo(map);
+                });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
         }
-     }
-  </script>
 
-    <!-- need actual google maps api -->
-  <!-- Load Google Maps & Places JS -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE&libraries=places&callback=initMap" async defer></script>
-
+        function enablePinDrop() {
+            pinDropEnabled = true;
+            alert("Click on the map to place your pin.");
+        }
+    </script>
 </body>
 </html>

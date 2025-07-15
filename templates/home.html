@@ -1,0 +1,64 @@
+<!--
+home.html
+This is the landing page of the app. It provides quick navigation to add/view game sightings or harvests.
+-->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Game Tracker</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 80px;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 40px;
+        }
+
+        .home-buttons a {
+            display: inline-block;
+            padding: 15px 30px;
+            margin: 10px;
+            background-color: #2e7d32;
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 1.2rem;
+            transition: background-color 0.2s;
+        }
+
+        .home-buttons a:hover {
+            background-color: #27642b;
+        }
+
+        .footer {
+            margin-top: 100px;
+            font-style: italic;
+            color: #555;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Game Sightings</h1>
+
+    <div class="home-buttons">
+        <a href="/add">Add New Sighting</a>
+        <a href="/add-harvest">Add New Harvest</a>
+        <a href="/sightings">View Sightings</a>
+        <a href="/harvests">View Harvests</a>
+    </div>
+
+    <div class="footer">
+        <p>For hunters by hunters, fueled by passion and a drive to aid others on their outdoor adventures.</p>
+    </div>
+</body>
+</html>

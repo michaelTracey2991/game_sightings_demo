@@ -1,3 +1,8 @@
+<!--
+index.html
+Page for viewing all the sighting in DB
+
+-->
 <!DOCTYPE html>
 <html>
 
@@ -13,8 +18,12 @@
 </head>
 
 <body>
+
+<!-- Link to return to main page -->
+<p><a href="{{ url_for('home') }}">Back to Main Page</a></p>
+
 <!-- Page Header -->
-    <h1>Game Sightings</h1>
+    <h1>Sightings Log</h1>
 
     <!-- Link to Add New Sighting Form -->
     <a href="/add">Add New Sighting</a>
@@ -60,6 +69,8 @@
             <th>Location</th>
             <th>Notes</th>
             <th>Marker</th> <!-- shows marker color -->
+            <th>Photo</th>
+            <th>Actions</th>
         </tr>
         </thead>
 
@@ -67,22 +78,37 @@
         <tbody>
         {% for sighting in sightings %}
         <tr>
-            <td><input type="checkbox" name="delete_ids" value="{{ sighting[0] }}"></td>
-            <td>{{ sighting[1] }}</td> <!-- animal -->
-            <td>{{ sighting[2] }}</td> <!-- date_time -->
-            <td>{{ sighting[3] }}</td> <!-- weather -->
-            <td>{{ sighting[4] }}</td> <!-- wind -->
-            <td>{{ sighting[5] }}</td> <!-- wind_Speed -->
-            <td>{{ sighting[6] }}</td> <!-- wind_direction -->
-            <td>{{ sighting[7] }}</td> <!-- humidity -->
-            <td>{{ sighting[8] }}</td> <!-- temperature -->
-            <td>{{ sighting[9] }}</td> <!-- location -->
-            <td>{{ sighting[10] }}</td> <!-- notes -->
+            <td><input type="checkbox" name="delete_ids" value="{{ sighting.id }}"></td>
+            <td>{{ sighting.animal }}</td>
+            <td>{{ sighting.date_time }}</td>
+            <td>{{ sighting.weather }}</td>
+            <td>{{ sighting.wind }}</td>
+            <td>{{ sighting.wind_speed }}</td>
+            <td>{{ sighting.wind_direction }}</td>
+            <td>{{ sighting.humidity }}</td>
+            <td>{{ sighting.temperature }}</td>
+            <td>{{ sighting.location }}</td>
+            <td>{{ sighting.notes }}</td>
             <td>
-                <div style="width: 20px; height: 20px; background-color: {{ sighting[11] }}; border: 1px solid #333;"></div>
-            </td>
-        </tr>
-        {% endfor %}
+        <div style="width: 20px; height: 20px; background-color: {{ sighting.marker_color }}; border: 1px solid #333;"></div>
+    </td>
+    <td>
+    {% if sighting.photo_filename %}
+        <img src="{{ url_for('static', filename='uploads/' ~ sighting.photo_filename) }}"
+             alt="Sighting Photo"
+             class="photo-thumb"
+             width="25"
+             onclick="openModal('{{ url_for('static', filename='uploads/' ~ sighting.photo_filename) }}', '{{ sighting.animal }}', '{{ sighting.date_time }}')">
+    {% else %}
+        No Photo
+    {% endif %}
+</td>
+<td>
+    <!-- New View Button -->
+    <a href="{{ url_for('view_sighting', sighting_id=sighting.id) }}">View</a>
+</td>
+</tr>
+{% endfor %}
         </tbody>
     </table>
 
@@ -111,22 +137,53 @@
 
     // Loop through all sightings and add markers
     sightings.forEach(s => {
-        const location = s[9]; // 'location' is index 9 in the database
-        const coords = location.split(',').map(Number);
-        const markerColor = s[11] || '#2e7d32' // default if empty
+    const lat = parseFloat(s.lat);
+    const lng = parseFloat(s.lng);
+    const markerColor = s.marker_color || '#2e7d32';
 
-        if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
-                L.circleMarker(coords, {
-                    radius: 10,
-                    fillColor: markerColor,
-                    color: markerColor,
-                    weight: 1,
-                    opacity: 1,
-                    fillOpacity: 0.8
-                }).addTo(map)
-                  .bindPopup(`<strong>${s[1]}</strong><br>${s[2]}`);
-            }
-        });
+    if (!isNaN(lat) && !isNaN(lng)) {
+        L.circleMarker([lat, lng], {
+            radius: 10,
+            fillColor: markerColor,
+            color: markerColor,
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).addTo(map)
+          .bindPopup(`<strong>${s.animal}</strong><br>${s.date_time}`);
+    }
+});
 </script>
+
+<!-- Modal Structure -->
+<div id="photoModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <img id="modalImage" src="" alt="Full Image">
+        <p id="modalDetails"></p>
+    </div>
+</div>
+
+<!-- Modal JavaScript -->
+<script>
+    function openModal(imageUrl, animal, dateTime) {
+        document.getElementById('modalImage').src = imageUrl;
+        document.getElementById('modalDetails').textContent = `${animal} - ${dateTime}`;
+        document.getElementById('photoModal').style.display = 'block';
+    }
+
+    function closeModal() {
+        document.getElementById('photoModal').style.display = 'none';
+    }
+
+    // Close when clicking outside modal
+    window.onclick = function(event) {
+        const modal = document.getElementById('photoModal');
+        if (event.target === modal) {
+            modal.style.display = "none";
+        }
+    };
+</script>
+
 </body>
 </html>

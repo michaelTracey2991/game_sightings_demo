@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Sighting</title>
+
+    <!-- Styles and Leaflet Map -->
+    <link rel="stylesheet" href="/static/style/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Custom Page Layout -->
+    <style>
+        form label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+
+        form input[type="text"],
+        form input[type="datetime-local"],
+        form input[type="number"],
+        form input[type="file"],
+        form select,
+        form textarea {
+            width: 100%;
+            padding: 6px;
+            margin-top: 5px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        form button[type="button"] {
+            margin-top: 10px;
+            margin-right: 10px;
+            padding: 6px 12px;
+        }
+
+        form input[type="submit"] {
+            margin-top: 20px;
+            padding: 10px 20px;
+        }
+
+        form textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        form {
+            margin-bottom: 40px;
+        }
+
+        form input:focus,
+        form select:focus,
+        form textarea:focus {
+            outline: none;
+            border-color: #66afe9;
+            box-shadow: 0 0 4px rgba(102, 175, 233, 0.6);
+        }
+
+        .content-wrapper {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            padding: 40px;
+            gap: 40px;
+        }
+
+        .form-section {
+            flex: 2;
+            min-width: 300px;
+            max-width: 600px;
+        }
+
+        .map-section {
+            flex: 1;
+            position: sticky;
+            top: 120px;
+            align-self: flex-start;
+        }
+
+        #map {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .custom-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .errors {
+            color: red;
+            font-size: 0.9em;
+            margin: 0 0 10px;
+            list-style: none;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1 style="text-align: center; padding-top: 40px;">Edit Sighting</h1>
+
+<div class="content-wrapper">
+    <div class="form-section">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <ul class="errors">
+            {% for category, message in messages %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" enctype="multipart/form-data">
+            {{ form.hidden_tag() }}
+
+            <!-- Animal Dropdown -->
+            <label for="animal">Animal:</label>
+            <select name="{{ form.animal.name }}" id="animal" required>
+                <option value="" disabled {% if not form.animal.data %}selected{% endif %}>Select animal</option>
+                <optgroup label="Big Game">
+                    {% for a in ["American Bison", "Black Bear", "Elk", "Whitetail Deer(Buck)", "Wild Boar"] %}
+                    <option value="{{ a }}" {% if form.animal.data == a %}selected{% endif %}>{{ a }}</option>
+                    {% endfor %}
+                </optgroup>
+            </select>
+            {% if form.animal.errors %}
+            <ul class="errors">{% for error in form.animal.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <!-- Date/Time -->
+            <label for="date_time">Date/Time:</label>
+            {{ form.date_time() }}
+            {% if form.date_time.errors %}
+            <ul class="errors">{% for error in form.date_time.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <!-- Weather -->
+            <label for="weather">Weather:</label>
+            <input type="text" name="{{ form.weather.name }}" id="weather" list="weather_options" value="{{ form.weather.data or '' }}">
+            <datalist id="weather_options">
+                {% for w in ["Sunny", "Cloudy", "Rain", "Snow", "Windy"] %}
+                <option value="{{ w }}">
+                {% endfor %}
+            </datalist>
+            {% if form.weather.errors %}
+            <ul class="errors">{% for error in form.weather.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <!-- Wind -->
+            <label for="wind">Wind:</label>
+            <input type="text" name="{{ form.wind.name }}" id="wind" value="{{ form.wind.data or '' }}">
+            {% if form.wind.errors %}
+            <ul class="errors">{% for error in form.wind.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <label for="wind_direction">Wind Direction:</label>
+            <input type="text" name="{{ form.wind_direction.name }}" id="wind_direction" value="{{ form.wind_direction.data or '' }}">
+            {% if form.wind_direction.errors %}
+            <ul class="errors">{% for error in form.wind_direction.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <label for="wind_speed">Wind Speed:</label>
+            <input type="text" name="{{ form.wind_speed.name }}" id="wind_speed" value="{{ form.wind_speed.data or '' }}">
+            {% if form.wind_speed.errors %}
+            <ul class="errors">{% for error in form.wind_speed.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <label for="humidity">Humidity:</label>
+            {{ form.humidity() }}
+            {% if form.humidity.errors %}
+            <ul class="errors">{% for error in form.humidity.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <label for="temperature">Temperature:</label>
+            {{ form.temperature() }}
+            {% if form.temperature.errors %}
+            <ul class="errors">{% for error in form.temperature.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <!-- Location -->
+            <label for="location">Location:</label>
+            {{ form.location(id='autocomplete') }}
+            <button type="button" onclick="getCurrentLocation()">📍 Use My Location</button>
+            <button type="button" onclick="enablePinDrop()">📌 Select on Map</button>
+            <button type="button" onclick="resetMap()">Reset Map</button><br>
+            {{ form.lat(id="lat") }}
+            {{ form.lng(id="lng") }}
+            {% if form.location.errors %}
+            <ul class="errors">{% for error in form.location.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <!-- Notes -->
+            <label for="notes">Notes:</label>
+            {{ form.notes() }}
+            {% if form.notes.errors %}
+            <ul class="errors">{% for error in form.notes.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <!-- Marker Color -->
+            <label for="marker_color">Pin Color:</label>
+            {{ form.marker_color(id="marker_color") }}
+            {% if form.marker_color.errors %}
+            <ul class="errors">{% for error in form.marker_color.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <!-- Photo Preview -->
+            <img id="photoPreview" src="{{ url_for('static', filename='uploads/' ~ form.photo.data) if form.photo.data else '' }}"
+                 style="max-width: 200px; display:{{ 'block' if form.photo.data else 'none' }}; margin-top:10px;" />
+
+            <label for="photo">Upload Photo:</label>
+            {{ form.photo(onchange="previewPhoto(this)") }}
+            {% if form.photo.errors %}
+            <ul class="errors">{% for error in form.photo.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            <br><br>
+            <input type="submit" value="Save">
+        </form>
+
+        <a href="{{ url_for('index') }}">← Back</a>
+    </div>
+
+    <div class="map-section">
+        <div id="map"></div>
+    </div>
+</div>
+
+<script>
+    const map = L.map('map').setView([45.0, -93.0], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marker;
+    let pinDropEnabled = false;
+
+    const lat = parseFloat({{ form.lat.data or 'null' }});
+    const lng = parseFloat({{ form.lng.data or 'null' }});
+    if (!isNaN(lat) && !isNaN(lng)) {
+        const markerColor = document.getElementById("marker_color").value || "#2e7d32";
+        marker = L.marker([lat, lng], {
+            icon: L.divIcon({
+                className: 'custom-icon',
+                html: `<div style="background:${markerColor};width:12px;height:12px;border-radius:50%;"></div>`
+            })
+        }).addTo(map).bindPopup("Current Location").openPopup();
+        map.setView([lat, lng], 13);
+    }
+
+    map.on('click', function (e) {
+        if (!pinDropEnabled) return;
+        const { lat, lng } = e.latlng;
+        document.getElementById("lat").value = lat;
+        document.getElementById("lng").value = lng;
+        document.getElementById("autocomplete").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        if (marker) map.removeLayer(marker);
+        marker = L.marker([lat, lng], {
+            icon: L.divIcon({
+                className: 'custom-icon',
+                html: `<div style="background:${document.getElementById("marker_color").value};width:12px;height:12px;border-radius:50%;"></div>`
+            })
+        }).addTo(map);
+    });
+
+    document.getElementById("marker_color").addEventListener("input", function () {
+        if (marker) {
+            const lat = marker.getLatLng().lat;
+            const lng = marker.getLatLng().lng;
+            map.removeLayer(marker);
+            marker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'custom-icon',
+                    html: `<div style="background:${this.value};width:12px;height:12px;border-radius:50%;"></div>`
+                })
+            }).addTo(map);
+        }
+    });
+
+    function getCurrentLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function (position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                document.getElementById("lat").value = lat;
+                document.getElementById("lng").value = lng;
+                document.getElementById("autocomplete").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                map.setView([lat, lng], 13);
+                if (marker) map.removeLayer(marker);
+                marker = L.marker([lat, lng]).addTo(map);
+            });
+        } else {
+            alert("Geolocation is not supported by this browser.");
+        }
+    }
+
+    function enablePinDrop() {
+        pinDropEnabled = true;
+        alert("Click on the map to place your pin.");
+    }
+
+    function previewPhoto(input) {
+        const preview = document.getElementById('photoPreview');
+        if (input.files && input.files[0]) {
+            preview.src = URL.createObjectURL(input.files[0]);
+            preview.style.display = 'block';
+        } else {
+            preview.src = '';
+            preview.style.display = 'none';
+        }
+    }
+
+    function resetMap() {
+        if (marker) map.removeLayer(marker);
+        document.getElementById('lat').value = '';
+        document.getElementById('lng').value = '';
+        document.getElementById('autocomplete').value = '';
+        map.setView([45.0, -93.0], 6);
+    }
+</script>
+
+</body>
+</html>
