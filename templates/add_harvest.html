@@ -1,15 +1,12 @@
 <!--
-ADD_HARVEST.HTML
-- Displays a form for users to log a new game harvest.
-- Collects data such as animal type, date, weapon used, caliber or broadhead, and notes.
-- Includes interactive Leaflet map for selecting shot and recovery locations.
-- Allows users to upload a photo and choose a marker color for map pins.
-- Data is submitted to the /add-harvest route and stored in the database.
--->
+ ADD NEW HARVEST
+ -->
 <!DOCTYPE html>
 <html>
 <head>
+    <!-- Form title -->
     <title>Add New Harvest</title>
+    <!-- Link to CSS page and Map Leaflet -->
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
@@ -33,7 +30,7 @@ ADD_HARVEST.HTML
         }
         #map {
             width: 100%;
-            height: 400px;
+            height: 500px;
             border: 1px solid #ccc;
             border-radius: 8px;
             margin-top: 20px;
@@ -45,329 +42,431 @@ ADD_HARVEST.HTML
             padding: 0;
             margin: 0 0 10px;
         }
+        /* Error formatting */
+        .error-container {
+            background: #ffeeee;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-left: 3px solid #ff3333;
+        }
+        .error {
+            color: #ff3333;
+            margin: 5px 0;
+        }
         .hidden {
             display: none;
         }
     </style>
 </head>
 <body>
-    <h1 style="text-align: center;">Add New Harvest</h1>
 
-    <div class="content-wrapper">
-        <div class="form-section">
-            <form method="POST" enctype="multipart/form-data">
-                {{ form.hidden_tag() }}
+<!-- Return to main page link -->
+<a href="{{ url_for('home') }}">← Return to Main Page</a>
+<!-- Page Header -->
+<h1 style="text-align: center;">Add New Harvest</h1>
 
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        <ul>
-                        {% for category, message in messages %}
-                            <li class="{{ category }}">{{ message }}</li>
+<div class="content-wrapper">
+    <!-- FORM SECTION -->
+    <div class="form-section">
+        <form method="POST" enctype="multipart/form-data">
+            {{ form.hidden_tag() }}
+
+            <!-- Enhanced error display area -->
+            <!-- Shows all form errors in one location
+                   instead of one per field -->
+            <div class="error-container">
+                {% for field, errors in form.errors.items() %}
+                    {% for error in errors %}
+                        <div class="error">{{ error }}</div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+
+            <!-- Flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <ul>
+                    {% for category, message in messages %}
+                        <li class="{{ category }}">{{ message }}</li>
+                    {% endfor %}
+                    </ul>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Harvest Form Name (required) Input Field -->
+            <div class="form-group">
+                <label for="harvest_name">Harvest Name: <span style="color: red;">*</span></label>
+                {{ form.harvest_name(class="form_control", id="harvest_name") }}
+                {% if form.harvest_name.errors %}
+                    <ul class="errors">
+                        {% for error in form.harvest_name.errors %}
+                            <li>{{ error }}</li>
                         {% endfor %}
-                        </ul>
-                    {% endif %}
-                {% endwith %}
-
-                <label for="animal">Animal:</label>
-                {{ form.animal() }}
-                {% if form.animal.errors %}
-                    <ul class="errors">{% for error in form.animal.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                    </ul>
                 {% endif %}
+            </div>
 
-                <br><br>
+            <!-- Animal Dropdown -->
+            <label for="animal">Animal:</label>
+            {{ form.animal() }}<br><br>
 
-                <label for="date_time">Date & Time:</label>
-                {{ form.date_time(type="datetime-local") }}
-                {% if form.date_time.errors %}
-                    <ul class="errors">{% for error in form.date_time.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-                {% endif %}
+            <!-- Date Time box -->
+            <label for="date_time">Date & Time:</label>
+            {{ form.date_time(type="datetime-local") }}<br><br>
 
-                <br><br>
+            <!-- Weapon Dropdown -->
+            <label for="weapon_select">Weapon Type:</label>
+            {{ form.weapon_type(id="weapon_select") }}<br><br>
 
-                <label for="weapon_select">Weapon Type:</label>
-                {{ form.weapon_type(id="weapon_select") }}
-                {% if form.weapon_type.errors %}
-                    <ul class="errors">{% for error in form.weapon_type.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-                {% endif %}
+            <!-- Other weapon input field -->
+            <div id="other_weapon_div" class="hidden">
+                <label>If Other:</label>
+                {{ form.other_weapon_type(disabled=True, class_="disabled") }}
+            </div>
 
-                <div id="other_weapon_div" class="hidden">
-                    <label for="other_weapon_type">If Other:</label>
-                    {{ form.other_weapon_type(disabled=True, class_="disabled") }}
-                    {% if form.other_weapon_type.errors %}
-                        <ul class="errors">{% for error in form.other_weapon_type.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-                    {% endif %}
-                </div>
-
-                <br>
-
-                <div id="caliber_section" class="hidden">
-                    <label for="caliber_select">Caliber / Gauge:</label>
-                    <select id="caliber_select" name="caliber" disabled class="disabled">
-                        <option value="">Select caliber/gauge</option>
-                    </select>
-                    {% if form.caliber.errors %}
-                        <ul class="errors">{% for error in form.caliber.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-                    {% endif %}
-                </div>
-
-                <div id="other_caliber_div" class="hidden">
-                    <label for="other_caliber">If Other:</label>
-                    {{ form.other_caliber(disabled=True, class_="disabled") }}
-                    {% if form.other_caliber.errors %}
-                        <ul class="errors">{% for error in form.other_caliber.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-                    {% endif %}
-                </div>
-
-                <div id="broadhead_section" class="hidden">
-                    <label for="broadhead_select">Broadhead Type:</label>
-                    <select id="broadhead_select" name="broadhead" disabled class="disabled">
-                        <option value="">Select broadhead</option>
-                        <option value="Fixed">Fixed</option>
-                        <option value="Mechanical">Mechanical</option>
-                        <option value="Hybrid">Hybrid</option>
-                        <option value="Other">Other</option>
-                    </select>
-                    {% if form.broadhead.errors %}
-                        <ul class="errors">{% for error in form.broadhead.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-                    {% endif %}
-                </div>
-
-                <div id="other_broadhead_div" class="hidden">
-                    <label for="other_broadhead">If Other:</label>
-                    {{ form.other_broadhead(disabled=True, class_="disabled") }}
-                    {% if form.other_broadhead.errors %}
-                        <ul class="errors">{% for error in form.other_broadhead.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-                    {% endif %}
-                </div>
-
-                <!-- Weather Dropdown -->
-                <label for="weather_select">Weather:</label>
-                <select id="weather_select" name="weather">
-                    <option value="">Select Weather</option>
-                    <option value="Clear">Clear</option>
-                    <option value="Cloudy">Cloudy</option>
-                    <option value="Rain">Rain</option>
-                    <option value="Snow">Snow</option>
-                    <option value="Fog">Fog</option>
-                    <option value="windy">Windy</option>
+            <!-- Caliber/Gauge Dropdown -->
+            <div id="caliber_section" class="hidden">
+                <label for="caliber_select">Caliber / Gauge:</label>
+                <select id="caliber_select" name="caliber" disabled class="disabled">
+                    <option value="">Select caliber/gauge</option>
                 </select>
-                <br>
-                <br>
+            </div>
 
-                <!-- Wind Speed Dropdown -->
-                <label for="wind_speed_select">Wind Speed (mph):</label>
-                <select id="wind_speed_select" name="wind_speed">
-                    <option value="">Select wind speed</option>
-                    <option value="Calm (0-1)">Calm (0-1)</option>
-                    <option value="Light Air (1-3)">Light Air (1-3)</option>
-                    <option value="Light Breeze (4-7)">Light Breeze (4-7)</option>
-                    <option value="Gentle Breeze (8-12)">Gentle Breeze (8-12)</option>
-                    <option value="Moderate Breeze (13-18)">Moderate Breeze (13-18)</option>
-                    <option value="Fresh Breeze (19-24)">Fresh Breeze (19-24)</option>
-                    <option value="Strong Breeze (25-31)">Strong Breeze (25-31)</option>
+            <!-- Other Caliber Input -->
+            <div id="other_caliber_div" class="hidden">
+                <label>If Other:</label>
+                {{ form.other_caliber(disabled=True, class_="disabled") }}
+            </div>
+
+            <!-- Broadhead Dropdown -->
+            <div id="broadhead_section" class="hidden">
+                <label>Broadhead Type:</label>
+                <select id="broadhead_select" name="broadhead" disabled class="disabled">
+                    <option value="">Select broadhead</option>
+                    <option value="Fixed">Fixed</option>
+                    <option value="Mechanical">Mechanical</option>
+                    <option value="Hybrid">Hybrid</option>
+                    <option value="Other">Other</option>
                 </select>
-                <br>
-                <br>
+            </div>
 
-                <!-- Wind Direction Dropdown -->
+            <!-- Other Broadhead Input -->
+            <div id="other_broadhead_div" class="hidden">
+                <label>If Other:</label>
+                {{ form.other_broadhead(disabled=True, class_="disabled") }}
+            </div>
 
-                <h3>Map - Set Locations</h3>
-                <button type="button" id="btnShot">Set Shot Location</button>
-                <button type="button" id="btnRecovery">Set Recovery Location</button>
-                <div id="map"></div>
-                <br>
+            <br>
 
-                {{ form.shot_lat() }} {{ form.shot_lng() }}
-                {{ form.recovery_lat() }} {{ form.recovery_lng() }}
-                <br>
+            <!-- Weather Dropdown -->
+            <label for="weather_select">Weather:</label>
+            <select id="weather_select" name="weather">
+                <option value="">Select Weather</option>
+                <option value="Clear">Clear</option>
+                <option value="Cloudy">Cloudy</option>
+                <option value="Rain">Rain</option>
+                <option value="Snow">Snow</option>
+                <option value="Fog">Fog</option>
+                <option value="Windy">Windy</option>
+            </select>
+            <button type="button" id="fetchWeather">Auto-Fill Weather</button>
+            <br><br>
 
-                <label for="distance_input">Distance Traveled (yards):</label>
-                {{ form.distance_traveled(readonly="readonly", id="distance_input", style="background:#f0f0f0; border:none; width:100px;") }}
-                {% if form.distance_traveled.errors %}
-                    <ul class="errors">{% for error in form.distance_traveled.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-                {% endif %}
+            <!-- Wind Dropdown -->
+            <label for="wind_speed_select">Wind Speed (mph):</label>
+            <select id="wind_speed_select" name="wind_speed">
+                <option value="">Select wind speed</option>
+                <option value="Calm (0-1)">Calm (0-1)</option>
+                <option value="Light Air (1-3)">Light Air (1-3)</option>
+                <option value="Light Breeze (4-7)">Light Breeze (4-7)</option>
+                <option value="Gentle Breeze (8-12)">Gentle Breeze (8-12)</option>
+                <option value="Moderate Breeze (13-18)">Moderate Breeze (13-18)</option>
+                <option value="Fresh Breeze (19-24)">Fresh Breeze (19-24)</option>
+                <option value="Strong Breeze (25-31)">Strong Breeze (25-31)</option>
+            </select><br><br>
 
-                <br>
-                <br>
+            <!-- Wind Direction Dropdown -->
+            <label for="wind_direction_select">Wind Direction:</label>
+            <select id="wind_direction_select" name="wind_direction">
+                <option value="">Select wind direction</option>
+                <option value="N">N</option>
+                <option value="NE">NE</option>
+                <option value="E">E</option>
+                <option value="SE">SE</option>
+                <option value="S">S</option>
+                <option value="SW">SW</option>
+                <option value="W">W</option>
+                <option value="NW">NW</option>
+            </select><br><br>
 
-                <label for="marker_color_input">Marker Color:</label>
-                {{ form.marker_color(type="color", id="marker_color_input") }}
-                <br>
-                <br>
+            <!-- Humidity Dropdown -->
+            <label for="humidity_select">Humidity (%):</label>
+            <select id="humidity_select" name="humidity">
+                <option value="">Select Humidity</option>
+                {% for i in range(0, 105, 5) %}
+                    <option value="{{ i }}%">{{ i }}%</option>
+                {% endfor %}
+            </select><br><br>
 
-                <label for="notes">Notes:</label>
-                {{ form.notes(rows=4, cols=50, id="notes") }}
-                {% if form.notes.errors %}
-                    <ul class="errors">{% for error in form.notes.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-                {% endif %}
-                <br>
-                <br>
+            <!-- Harvest Notes -->
+            <label>Notes:</label>
+            {{ form.notes(rows=4, cols=50) }}<br><br>
 
-                <label for="photo">Upload Photo:</label>
-                {{ form.photo() }}
-                <br>
-                <br>
+            <!-- Upload Harvest Photo -->
+            <label>Upload Photo:</label>
+            {{ form.photo() }}<br><br>
 
-                <button type="submit">Submit Harvest</button>
-                <br><br>
-                <a href="{{ url_for('view_harvests') }}">Back to All Harvests</a>
-            </form>
-        </div>
-
-        <div class="map-section"></div>
+            <!-- Submit Harvest Button -->
+            <button type="submit" onclick="return validateForm()">Submit Harvest
+            </button>
+        </form>
     </div>
 
-    <!-- Leaflet & Interactivity -->
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script>
-    const weaponSelect = document.getElementById("weapon_select");
-    const caliberSelect = document.getElementById("caliber_select");
-    const broadheadSelect = document.getElementById("broadhead_select");
+    <!-- MAP SECTION -->
+    <div class="map-section">
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <button type="button" id="btnShot">Set Shot Location</button>
+            <button type="button" id="btnRecovery">Set Recovery Location</button>
+            <button type="button" id="resetShot">Reset Shot</button>
+            <button type="button" id="resetRecovery">Reset Recovery</button>
+        </div>
 
-    const caliberSection = document.getElementById("caliber_section");
-    const broadheadSection = document.getElementById("broadhead_section");
+        <!-- Marker Color Selector for Map -->
+        <label>Marker Color:</label><br>
+        {{ form.marker_color(type="color", id="marker_color_input") }}<br><br>
 
-    const otherWeaponDiv = document.getElementById("other_weapon_div");
-    const otherCaliberDiv = document.getElementById("other_caliber_div");
-    const otherBroadheadDiv = document.getElementById("other_broadhead_div");
+        <!-- Distance Traveled between Shot Location and Recovery Location -->
+        <label>Distance Traveled (yards):</label><br>
+        {{ form.distance_traveled(readonly="readonly", id="distance_input", style="background:#f0f0f0; border:none; width:100px;") }}<br><br>
 
-    const weaponOptions = {
-        "Rifle": [".223", ".243", ".270", ".30-06", ".308", "7mm", "Other"],
-        "Shotgun": ["12 gauge", "20 gauge", "16 gauge", "10 gauge", "Other"],
-        "Compound Bow": ["N/A"],
-        "Recurve Bow": ["N/A"],
-        "Longbow": ["N/A"],
-        "Crossbow": ["N/A"]
-    };
+        <!-- Map on right side of page -->
+        <div id="map"></div>
+        {{ form.shot_lat() }}
+        {{ form.shot_lng() }}
+        {{ form.recovery_lat() }}
+        {{ form.recovery_lng() }}
+    </div>
+</div>
 
-    const bowTypes = ["Compound Bow", "Recurve Bow", "Longbow", "Crossbow"];
+<!-- Map Link -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+    // Coordinate validation utility
+    // Prevents invalid lat/lng values from being submitted
+    function isValidCoord(lat, lng) {
+        return lat && lng &&
+            Math.abs(lat) <= 90 &&
+            Math.abs(lng) <= 180;
+    }
+</script>
 
-    weaponSelect.addEventListener("change", () => {
-        const selected = weaponSelect.value;
-        const isBow = bowTypes.includes(selected);
+<!-- Javascript for add_harvest.html -->
+<script>
+const weaponSelect = document.getElementById("weapon_select");
+const caliberSelect = document.getElementById("caliber_select");
+const broadheadSelect = document.getElementById("broadhead_select");
 
-        // Caliber logic
-        if (isBow) {
-            caliberSection.classList.add("hidden");
-            caliberSelect.disabled = true;
-            caliberSelect.classList.add("disabled");
-        } else {
-            caliberSection.classList.remove("hidden");
-            caliberSelect.disabled = false;
-            caliberSelect.classList.remove("disabled");
-            caliberSelect.innerHTML = '<option value="">Select caliber/gauge</option>';
-            (weaponOptions[selected] || []).forEach(opt => {
-                const o = document.createElement("option");
-                o.value = opt;
-                o.textContent = opt;
-                caliberSelect.appendChild(o);
-            });
-        }
+const caliberSection = document.getElementById("caliber_section");
+const broadheadSection = document.getElementById("broadhead_section");
 
-        // Broadhead logic
-        if (isBow) {
-            broadheadSection.classList.remove("hidden");
-            broadheadSelect.disabled = false;
-            broadheadSelect.classList.remove("disabled");
-        } else {
-            broadheadSection.classList.add("hidden");
-            broadheadSelect.disabled = true;
-            broadheadSelect.classList.add("disabled");
-        }
+const otherWeaponDiv = document.getElementById("other_weapon_div");
+const otherCaliberDiv = document.getElementById("other_caliber_div");
+const otherBroadheadDiv = document.getElementById("other_broadhead_div");
 
-        // Other weapon field
-        if (selected === "Other") {
-            otherWeaponDiv.classList.remove("hidden");
-            otherWeaponDiv.querySelector("input").disabled = false;
-            otherWeaponDiv.querySelector("input").classList.remove("disabled");
-        } else {
-            otherWeaponDiv.classList.add("hidden");
-            otherWeaponDiv.querySelector("input").disabled = true;
-            otherWeaponDiv.querySelector("input").classList.add("disabled");
-        }
-    });
+const weaponOptions = {
+    "Rifle": [".223", ".243", ".270", ".30-06", ".308", "7mm", "Other"],
+    "Shotgun": ["12 gauge", "20 gauge", "16 gauge", "10 gauge", "Other"],
+    "Compound Bow": ["N/A"],
+    "Recurve Bow": ["N/A"],
+    "Longbow": ["N/A"],
+    "Crossbow": ["N/A"]
+};
 
-    caliberSelect.addEventListener("change", () => {
-        const showOther = caliberSelect.value === "Other";
-        otherCaliberDiv.classList.toggle("hidden", !showOther);
-        otherCaliberDiv.querySelector("input").disabled = !showOther;
-        otherCaliberDiv.querySelector("input").classList.toggle("disabled", !showOther);
-    });
+const bowTypes = ["Compound Bow", "Recurve Bow", "Longbow", "Crossbow"];
 
-    broadheadSelect.addEventListener("change", () => {
-        const showOther = broadheadSelect.value === "Other";
-        otherBroadheadDiv.classList.toggle("hidden", !showOther);
-        otherBroadheadDiv.querySelector("input").disabled = !showOther;
-        otherBroadheadDiv.querySelector("input").classList.toggle("disabled", !showOther);
-    });
+weaponSelect.addEventListener("change", () => {
+    const selected = weaponSelect.value;
+    const isBow = bowTypes.includes(selected);
 
-    // MAP LOGIC
-    const map = L.map('map').setView([45, -93], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-    let shotMarker, recMarker;
-    let setting = null;
-
-    document.getElementById('btnShot').onclick = () => setting = "shot";
-    document.getElementById('btnRecovery').onclick = () => setting = "recovery";
-
-    map.on('click', e => {
-        if (!setting) return;
-        const { lat, lng } = e.latlng;
-        const color = document.getElementById("marker_color_input").value || "#3388ff";
-        const icon = L.divIcon({
-            className: 'custom-div-icon',
-            html: `<div style="background-color:${color}; width:16px; height:16px; border-radius:50%; border:2px solid white;"></div>`,
-            iconSize: [16, 16],
-            iconAnchor: [8, 8]
+    if (isBow) {
+        caliberSection.classList.add("hidden");
+        caliberSelect.disabled = true;
+    } else {
+        caliberSection.classList.remove("hidden");
+        caliberSelect.disabled = false;
+        caliberSelect.innerHTML = '<option value="">Select caliber/gauge</option>';
+        (weaponOptions[selected] || []).forEach(opt => {
+            const o = document.createElement("option");
+            o.value = opt;
+            o.textContent = opt;
+            caliberSelect.appendChild(o);
         });
-
-        if (setting === "shot") {
-            if (shotMarker) map.removeLayer(shotMarker);
-            shotMarker = L.marker(e.latlng, { icon, draggable: true }).addTo(map).bindPopup("Shot").openPopup();
-            document.querySelector('[name="shot_lat"]').value = lat;
-            document.querySelector('[name="shot_lng"]').value = lng;
-            shotMarker.on('dragend', () => updateLocation(shotMarker, "shot"));
-        }
-
-        if (setting === "recovery") {
-            if (recMarker) map.removeLayer(recMarker);
-            recMarker = L.marker(e.latlng, { icon, draggable: true }).addTo(map).bindPopup("Recovery").openPopup();
-            document.querySelector('[name="recovery_lat"]').value = lat;
-            document.querySelector('[name="recovery_lng"]').value = lng;
-            recMarker.on('dragend', () => updateLocation(recMarker, "recovery"));
-        }
-
-        setting = null;
-        calculateDistance();
-    });
-
-    function updateLocation(marker, type) {
-        const pos = marker.getLatLng();
-        document.querySelector(`[name="${type}_lat"]`).value = pos.lat;
-        document.querySelector(`[name="${type}_lng"]`).value = pos.lng;
-        calculateDistance();
     }
 
-    function calculateDistance() {
-        if (shotMarker && recMarker) {
-            const p1 = shotMarker.getLatLng(), p2 = recMarker.getLatLng();
-            const R = 3959; // miles
-            const dLat = (p2.lat - p1.lat) * Math.PI / 180;
-            const dLng = (p2.lng - p1.lng) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) ** 2 +
-                      Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) *
-                      Math.sin(dLng / 2) ** 2;
-            const d = 2 * R * Math.asin(Math.sqrt(a)) * 1760; // yards
-            document.getElementById("distance_input").value = d.toFixed(1);
-        }
+    if (isBow) {
+        broadheadSection.classList.remove("hidden");
+        broadheadSelect.disabled = false;
+    } else {
+        broadheadSection.classList.add("hidden");
+        broadheadSelect.disabled = true;
     }
 
-    window.addEventListener("DOMContentLoaded", () => {
-        weaponSelect.dispatchEvent(new Event("change"));
-        caliberSelect.dispatchEvent(new Event("change"));
-        broadheadSelect.dispatchEvent(new Event("change"));
+    if (selected === "Other") {
+        otherWeaponDiv.classList.remove("hidden");
+        otherWeaponDiv.querySelector("input").disabled = false;
+    } else {
+        otherWeaponDiv.classList.add("hidden");
+        otherWeaponDiv.querySelector("input").disabled = true;
+    }
+});
+
+caliberSelect.addEventListener("change", () => {
+    const showOther = caliberSelect.value === "Other";
+    otherCaliberDiv.classList.toggle("hidden", !showOther);
+    otherCaliberDiv.querySelector("input").disabled = !showOther;
+});
+
+broadheadSelect.addEventListener("change", () => {
+    const showOther = broadheadSelect.value === "Other";
+    otherBroadheadDiv.classList.toggle("hidden", !showOther);
+    otherBroadheadDiv.querySelector("input").disabled = !showOther;
+});
+
+// Leaflet Map
+const map = L.map('map').setView([45, -93], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+let shotMarker, recMarker;
+let setting = null;
+
+document.getElementById('btnShot').onclick = () => setting = "shot";
+document.getElementById('btnRecovery').onclick = () => setting = "recovery";
+
+map.on('click', e => {
+    if (!setting) return;
+    const { lat, lng } = e.latlng;
+    const color = document.getElementById("marker_color_input").value || "#3388ff";
+    const icon = L.divIcon({
+        className: 'custom-div-icon',
+        html: `<div style="background-color:${color}; width:16px; height:16px; border-radius:50%; border:2px solid white;"></div>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
     });
-    </script>
+
+    if (setting === "shot") {
+        if (shotMarker) map.removeLayer(shotMarker);
+        shotMarker = L.marker(e.latlng, { icon, draggable: true }).addTo(map).bindPopup("Shot").openPopup();
+        document.querySelector('[name="shot_lat"]').value = lat;
+        document.querySelector('[name="shot_lng"]').value = lng;
+        shotMarker.on('dragend', () => updateLocation(shotMarker, "shot"));
+    }
+
+    if (setting === "recovery") {
+        if (recMarker) map.removeLayer(recMarker);
+        recMarker = L.marker(e.latlng, { icon, draggable: true }).addTo(map).bindPopup("Recovery").openPopup();
+        document.querySelector('[name="recovery_lat"]').value = lat;
+        document.querySelector('[name="recovery_lng"]').value = lng;
+        recMarker.on('dragend', () => updateLocation(recMarker, "recovery"));
+    }
+
+    setting = null;
+    calculateDistance();
+});
+
+function updateLocation(marker, type) {
+    const pos = marker.getLatLng();
+    document.querySelector(`[name="${type}_lat"]`).value = pos.lat;
+    document.querySelector(`[name="${type}_lng"]`).value = pos.lng;
+    calculateDistance();
+}
+// ============================================
+// DISTANCE CALCULATION
+// ============================================
+function calculateDistance() {
+    if (shotMarker && recMarker) {
+        const p1 = shotMarker.getLatLng(), p2 = recMarker.getLatLng();
+        const R = 3959; // miles
+        const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+        const dLng = (p2.lng - p1.lng) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 +
+                  Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) *
+                  Math.sin(dLng / 2) ** 2;
+        const d = 2 * R * Math.asin(Math.sqrt(a)) * 1760; // yards
+        document.getElementById("distance_input").value = d.toFixed(1);
+    }
+}
+
+document.getElementById("resetShot").onclick = () => {
+    if (shotMarker) {
+        map.removeLayer(shotMarker);
+        shotMarker = null;
+        document.querySelector('[name="shot_lat"]').value = '';
+        document.querySelector('[name="shot_lng"]').value = '';
+    }
+    calculateDistance();
+};
+
+document.getElementById("resetRecovery").onclick = () => {
+    if (recMarker) {
+        map.removeLayer(recMarker);
+        recMarker = null;
+        document.querySelector('[name="recovery_lat"]').value = '';
+        document.querySelector('[name="recovery_lng"]').value = '';
+    }
+    calculateDistance();
+};
+
+// WEATHER FETCHING
+document.getElementById('fetchWeather').addEventListener('click', async () => {
+    const lat = parseFloat(document.querySelector('[name="shot_lat"]').value);
+    const lng = parseFloat(document.querySelector('[name="shot_lng"]').value);
+    if (!lat || !lng) return alert("Set Shot Location first.");
+
+    try {
+        const apiKey = 'cc8beb82ee67e0f7e15c806e827aee80';
+        const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${apiKey}&units=imperial`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        const mapWeather = {
+            clear: "Clear",
+            clouds: "Cloudy",
+            rain: "Rain",
+            snow: "Snow",
+            fog: "Fog",
+            mist: "Fog",
+            haze: "Fog",
+            drizzle: "Rain",
+            thunderstorm: "Rain"
+        };
+
+        const w = data.weather[0].main.toLowerCase();
+        const humidity = Math.round(data.main.humidity / 5) * 5;
+        const windDeg = data.wind.deg;
+        const windSpd = data.wind.speed;
+
+        document.getElementById("weather_select").value = mapWeather[w] || "";
+        document.getElementById("humidity_select").value = `${humidity}%`;
+
+        const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        document.getElementById("wind_direction_select").value = dirs[Math.round(windDeg / 45) % 8];
+
+        const windOpts = [
+            { max: 1, label: "Calm (0-1)" },
+            { max: 3, label: "Light Air (1-3)" },
+            { max: 7, label: "Light Breeze (4-7)" },
+            { max: 12, label: "Gentle Breeze (8-12)" },
+            { max: 18, label: "Moderate Breeze (13-18)" },
+            { max: 24, label: "Fresh Breeze (19-24)" },
+            { max: 31, label: "Strong Breeze (25-31)" }
+        ];
+        const match = windOpts.find(o => windSpd <= o.max);
+        document.getElementById("wind_speed_select").value = match ? match.label : "";
+    } catch (err) {
+        console.error(err);
+        alert("Error fetching weather.");
+    }
+});
+</script>
 </body>
 </html>

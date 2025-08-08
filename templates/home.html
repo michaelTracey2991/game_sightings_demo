@@ -51,10 +51,10 @@ This is the landing page of the app. It provides quick navigation to add/view ga
     <h1>Game Sightings</h1>
 
     <div class="home-buttons">
-        <a href="/add">Add New Sighting</a>
-        <a href="/add-harvest">Add New Harvest</a>
-        <a href="/sightings">View Sightings</a>
-        <a href="/harvests">View Harvests</a>
+        <a href="{{ url_for('add_sighting') }}">Add New Sighting</a>
+        <a href="{{ url_for('add_harvest') }}">Add New Harvest</a>
+        <a href="{{ url_for('view_sightings') }}">View Sightings</a>
+        <a href="{{ url_for('view_all_harvests') }}">View Harvests</a>
     </div>
 
     <div class="footer">

@@ -84,6 +84,7 @@ photo zoom, and a mini map
     </style>
 </head>
 <body>
+<p><a href="{{ url_for('view_harvests') }}">← Back to All Sightings</a></p>
     <h1>{{ harvest.animal }} Harvest Details</h1>
 
     <div style="margin-bottom: 1em;">
@@ -93,7 +94,7 @@ photo zoom, and a mini map
             </form>
             <button type="button" onclick="openDeleteModal('{{ url_for('delete_harvest', harvest_id=harvest.id) }}')">Delete</button>
         </div>
-        <p><a href="{{ url_for('index') }}">← Back to All Sightings</a></p>
+
     </div>
 
     <div class="flex-view">
@@ -101,6 +102,13 @@ photo zoom, and a mini map
             <tr><th>Animal</th><td>{{ harvest.animal }}</td></tr>
             <tr><th>Date/Time</th><td>{{ harvest.date_time }}</td></tr>
             <tr><th>Weapon</th><td>{{ harvest.weapon }}</td></tr>
+            <tr><th>Caliber</th><td>{{ harvest.caliber or '-' }}</td></tr>
+            <tr><th>Broadhead</th><td>{{ harvest.broadhead or '-' }}</td></tr>
+            <tr><th>Weather</th><td>{{ harvest.weather or '-' }}</td></tr>
+            <tr><th>Wind Speed</th><td>{{ harvest.wind_speed or '-' }}</td></tr>
+            <tr><th>Wind Direction</th><td>{{ harvest.wind_direction or '-' }}</td></tr>
+            <tr><th>Humidity</th><td>{{ harvest.humidity or '-' }}</td></tr>
+            <tr><th>Distance Traveled</th><td>{{ harvest.distance_traveled or '-' }}</td></tr>
             <tr><th>Notes</th><td>{{ harvest.notes }}</td></tr>
             <tr><th>Location</th><td>{{ harvest.location }}</td></tr>
             <tr><th>Marker Color</th><td><div style="width: 20px; height: 20px; background-color: {{ harvest.marker_color }};"></div></td></tr>

@@ -11,12 +11,38 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+
+# -----------------------------------------
+# Animal Model
+# -----------------------------------------
+class Animal(db.Model):
+    __tablename__ = 'animal'
+    """
+    This model represents individual animals and their biological class.
+    Used for dropdown filters and normalization across Sighting and Harvest.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)  # e.g. white tail deer
+    animal_class = db.Column(db.String(50), nullable=False)  # Large Game
+
+    # Relationships to other models
+    sightings = db.relationship('Sighting', backref='animal', lazy=True)
+    harvests = db.relationship('Harvest', backref='animal', lazy=True)
+
+    def __repr__(self):
+        return f"<Animal: {self.name} ({self.animal_class})>"
+
 # ----------------------------
 # Wildlife Sighting Model
 # ----------------------------
+
+
 class Sighting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    animal = db.Column(db.String(100), nullable=False)
+
+    # replace 'animal' with foreign key to Animal model
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
+
     date_time = db.Column(db.DateTime, nullable=True)
     weather = db.Column(db.String(100), nullable=True)
     wind = db.Column(db.String(100), nullable=True)
@@ -34,7 +60,7 @@ class Sighting(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
-            "animal": self.animal,
+            "animal": self.animal.name if self.animal else None,  # Access related animal name
             "date_time": self.date_time,
             "weather": self.weather,
             "wind": self.wind,
@@ -53,9 +79,14 @@ class Sighting(db.Model):
 # ----------------------------
 # Harvest Log Model
 # ----------------------------
+
+
 class Harvest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    animal = db.Column(db.String(100), nullable=False)
+
+    # Replace 'animal = db.Column with foreign key
+    animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False)
+
     date_time = db.Column(db.DateTime, nullable=True)
     weapon_type = db.Column(db.String(50), nullable=True)
     caliber = db.Column(db.String(50), nullable=True)
@@ -72,7 +103,7 @@ class Harvest(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
-            "animal": self.animal,
+            "animal": self.animal.name if self.animal else None,  # Access related animal name
             "date_time": self.date_time,
             "weapon_type": self.weapon_type,
             "caliber": self.caliber,

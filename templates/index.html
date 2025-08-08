@@ -1,5 +1,5 @@
 <!--
-index.html
+index.html (view sightings)
 Page for viewing all the sighting in DB
 
 -->
@@ -20,18 +20,18 @@ Page for viewing all the sighting in DB
 <body>
 
 <!-- Link to return to main page -->
-<p><a href="{{ url_for('home') }}">Back to Main Page</a></p>
+<p><a href="{{ url_for('home') }}">← Back to Main Page</a></p>
 
 <!-- Page Header -->
     <h1>Sightings Log</h1>
 
     <!-- Link to Add New Sighting Form -->
-    <a href="/add">Add New Sighting</a>
+    <a href="{{ url_for('add_sighting') }}">Add New Sighting</a>
 
     <!-- Dropdown for filtering by animal -->
     <!-- Filer + Sort Form -->
     <!-- This form filters the table based on selected animal and sorts sightings by date -->
-    <form method="GET" action="/">
+    <form method="GET" action="{{ url_for('view_sightings') }}">
         <!-- Filter by Animal Dropdown -->
         <label for="animal">Filter by Animal</label>
         <select name="animal">
@@ -105,7 +105,7 @@ Page for viewing all the sighting in DB
 </td>
 <td>
     <!-- New View Button -->
-    <a href="{{ url_for('view_sighting', sighting_id=sighting.id) }}">View</a>
+    <a href="{{ url_for('view_sighting', id=sighting.id) }}">View</a>
 </td>
 </tr>
 {% endfor %}
@@ -127,7 +127,7 @@ Page for viewing all the sighting in DB
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
     // Sightings data passed from Flask as JSON
-    const sightings = {{ sightings|tojson }};
+    const sightings = {{ sightings_json|tojson }};
 
     // Initialize map centered on MN area
     const map = L.map('map').setView([45, -93], 6);

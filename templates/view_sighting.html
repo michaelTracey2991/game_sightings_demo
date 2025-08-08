@@ -84,6 +84,7 @@ and photo/map if available
   </style>
 </head>
 <body>
+<p><a href="{{ url_for('sightings_page') }}">← Back to All Sightings</a></p>
   <h1>{{ sighting.animal }} Sighting Details</h1>
 
   <div style="margin-bottom: 1em;">
@@ -93,7 +94,7 @@ and photo/map if available
       </form>
       <button type="button" onclick="openDeleteModal('{{ url_for('delete_sighting', sighting_id=sighting.id) }}')">Delete</button>
     </div>
-    <p><a href="{{ url_for('index') }}">← Back to All Sightings</a></p>
+
   </div>
 
   <div class="flex-view">

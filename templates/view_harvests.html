@@ -37,7 +37,7 @@
 </head>
 <body>
 <!-- link to return to home page -->
-<p><a href="{{ url_for('index') }}">← Back to Main Page</a></p>
+<p><a href="{{ url_for('home') }}">← Back to Main Page</a></p>
 
 <!-- Page header -->
 <h1>Harvest Log</h1>
@@ -55,6 +55,10 @@
             <th>Weapon</th>
             <th>Caliber</th>
             <th>Broadhead</th>
+            <th>Weather</th>
+            <th>Wind Speed</th>
+            <th>Wind Direction</th>
+            <th>Humidity</th>
             <th>Distance Traveled</th>
             <th>Notes</th>
             <th>Photo</th>
@@ -67,14 +71,18 @@
         {% for h in harvests %}
         <!-- If this is the newest harvest, highlight the row  -->
          <tr {% if h.id == latest_id %}style="background-color:#f5f5f5;"{% endif %}>
-            <td>{{ h.animal }}</td>
-            <td>{{ h.date_time }}</td>
-            <td>{{ h.weapon_type }}</td>
-            <td>{{ h.caliber }}</td>
-            <td>{{ h.broadhead }}</td>
-            <td>{{ h.distance_traveled }} yards</td>
-            <td style="max-width: 200px; word-wrap: break-word;">{{ h.notes }}</td>
-            <td>
+             <td>{{ h.animal }}</td>
+             <td>{{ h.date_time }}</td>
+             <td>{{ h.weapon_type }}</td>
+             <td>{{ h.caliber }}</td>
+             <td>{{ h.broadhead }}</td>
+             <td>{{ h.weather or '-' }}</td>
+             <td>{{ h.wind_speed or '-' }}</td>
+             <td>{{ h.wind_direction or '-' }}</td>
+             <td>{{ h.humidity or '-' }}</td>
+             <td>{{ h.distance_traveled }} yards</td>
+             <td style="max-width: 200px; word-wrap: break-word;">{{ h.notes }}</td>
+             <td>
                 {% if h.photo_filename %}
                     <img src="{{ url_for('static', filename='uploads/' ~ h.photo_filename) }}"
                      width="25"

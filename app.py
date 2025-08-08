@@ -1,356 +1,342 @@
-"""
-app.py
-The main flask application file that initializes and configures the web app,
-sets up routes, handles user requests, and manages form submissions related to wildlife sightings.
-This file integrates the Flask app with the database, form validations, and templates
-to create a full-featured wildlife sighting tracking application.
-"""
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_wtf import CSRFProtect
 
-
-from flask import Flask, render_template, request, redirect, url_for
-from models import db, Sighting
-import os
+from models import db, Sighting, Harvest, Animal
+from forms import SightingForm, HarvestForm, ANIMAL_CHOICES
 from werkzeug.utils import secure_filename
 from datetime import datetime
-from forms import SightingForm
-from forms import HarvestForm
-from models import Harvest
-from flask import flash
-from flask import jsonify
+import os
 
-# ------------------------------
-# Flask App Setup
-# ------------------------------
 app = Flask(__name__)
 
-# Set up SQLite database using SQLAlchemy
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///sightings.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# Enable CSRF protection for Flask-WTF form
-# Can use a string for key for now, in production should be secure random value from secrets manager or environment variable
-app.config['SECRET_KEY'] = 'replace-this-with-a-strong-random-secret'
+# Secret key for session management - ENVIRONMENT VARIABLES
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev-fallback-key'
 
-# Set upload folder for storing user-uploaded images
+# Upload folder for user-uploaded images
 UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Converts a Harvest model object to a dictionary that can be used in JSON
-def harvest_to_dict(h):
-    return {
-        'id': h.id,
-        'animal': h.animal,
-        'date_time': h.date_time.isoformat() if h.date_time else None,
-        'weapon_type': h.weapon_type,
-        'caliber': h.caliber,
-        'broadhead': h.broadhead,
-        'shot_lat': h.shot_lat,
-        'shot_lng': h.shot_lng,
-        'recovery_lat': h.recovery_lat,
-        'recovery_lng': h.recovery_lng,
-        'distance_traveled': h.distance_traveled,
-        'notes': h.notes,
-        'marker_color': h.marker_color,
-        'photo_filename': h.photo_filename
-    }
-
-# Initialize SQLAlchemy with Flask app
+# Database config - ENVIRONMENT VARIABLES
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///wildlife.db')
+# Initialize extension
 db.init_app(app)
+csrf = CSRFProtect(app) # CSRF protection
+
+# =========================================
+# HELPER FUNCTIONS
+# =========================================
 
 
-# ROUTE FOR HOME PAGE --------------------------------------
+def handle_file_upload(file_field):
+    """Safe file upload handler with error checking"""
+    if file_field and file_field.filename:
+        filename = secure_filename(file_field.filename)
+        try:
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file_field.save(filepath)
+            return filename
+        except Exception as e:
+            flash('File upload failed: ' + str(e), 'error')
+            return None
+        return None
+
+# --------
+# Utilities
+# --------
+
+
+def safe_float(val):
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+# -----------------------
+# HOME / LANDING PAGE
+# -----------------------
 @app.route('/')
 def home():
     return render_template('home.html')
 
 
+# @app.route('/')
+# def index():
+#     return render_template('index.html')
+
+
+# -----------------------
+# SIGHTING ROUTES
+# -----------------------
+
+# VIEW ALL SIGHTINGS ======================================
 @app.route('/sightings')
-def sightings_page():
+def view_sightings():
+    # Get filter/sort query params
     animal_filter = request.args.get('animal')
     sort_order = request.args.get('sort', 'desc')
 
-    query = Sighting.query
+    # base query
+    sightings_query = Sighting.query
+
+    # Apply filter
     if animal_filter:
-        query = query.filter_by(animal=animal_filter)
-    if sort_order.lower() == 'asc':
-        query = query.order_by(Sighting.date_time.asc())
+        sightings_query = sightings_query.join(Animal).filter(Animal.name == animal_filter)
+
+    # Apply sort
+    if sort_order == 'asc':
+        sightings_query = sightings_query.order(Sighting.date_time.asc())
     else:
-        query = query.order_by(Sighting.date_time.desc())
+        sightings_query = sightings_query.order_by(Sighting.date_time.desc())
 
-    sightings = query.all()
-    sightings_data = [s.to_dict() for s in sightings]
+    sightings = sightings_query.all()
 
-    unique_animals = db.session.query(Sighting.animal).distinct().order_by(Sighting.animal).all()
-    unique_animals = [a[0] for a in unique_animals]
+    # Build JSON for map
+    sightings_json = [
+        {
+            'id': s.id,
+            "marker_color": s.marker_color,
+            'animal': s.animal.name if s.animal else None,
+            'location': s.location,
+            'date_time': s.date_time.strftime('%Y-%m-%d %H:%M'),
+            'lat': s.lat,
+            'lng': s.lng,
+            'notes': s.notes,
+            'photo_filename': s.photo_filename
+        } for s in sightings
+    ]
+
+    # Build animal filter list
+    unique_animals = [a.name for a in Animal.query.order_by(Animal.name).all()]
 
     return render_template(
         'index.html',
-        sightings=sightings_data,
-        animal_filter=animal_filter or '',
-        sort_order=sort_order,
-        unique_animals=unique_animals
-    )
-
-# ------------------------------
-# Home Route (INDEX PAGE) ------------------------------------
-# Shows all sightings and filtering options
-# ------------------------------
-
-
-@app.route('/')
-def index():
-    animal_filter = request.args.get('animal')         # Filter by animal(optional)
-    sort_order = request.args.get('sort', 'desc')       # Sort by date - newest first
-
-    # BUILD QUERY DYNAMICALLY BASED ON FILTER/SORT
-    query = Sighting.query
-    if animal_filter:
-        query = query.filter_by(animal=animal_filter)
-    if sort_order.lower() == 'asc':
-        query = query.order_by(Sighting.date_time.asc())
-    else:
-        query = query.order_by(Sighting.date_time.desc())
-
-    sightings = query.all()
-
-    # Use model helper to convert to dict
-    sightings_data = [s.to_dict() for s in sightings]
-
-    # GET DISTINCT LIST OF ANIMAL NAMES FOR DROPDOWN
-    unique_animals = db.session.query(Sighting.animal).distinct().order_by(Sighting.animal).all()
-    unique_animals = [a[0] for a in unique_animals]
-
-    return render_template(
-        'index.html',
-        sightings=sightings_data,  # Send the serialized data to template
-        animal_filter=animal_filter or '',
+        sightings=sightings,
+        sightings_json=sightings_json,
+        animal_filter=animal_filter,
         sort_order=sort_order,
         unique_animals=unique_animals
     )
 
 
-# ------------------------------
-# ADD NEW SIGHTING ROUTE ------------------------------------
-# Handles form submission for new sightings
-# ------------------------------
+# ADD NEW SIGHTINGS ========================================
 
 
-@app.route('/add', methods=['GET', 'POST'])
-def add():
+@app.route('/sightings/add', methods=['GET', 'POST'])
+def add_sighting():
     form = SightingForm()
+
+    # Dynamically update animal choices based on selected category
+    # if request.method == 'POST':
+    # Always set animal choices if category is selected (GET or POST)
+    selected_category = request.form.get('animal_category') or form.animal_category.data
+    if selected_category in ANIMAL_CHOICES:
+        form.animal.choices = [(a, a) for a in ANIMAL_CHOICES[selected_category]]
+    else:
+        form.animal.choices = []
+
     if form.validate_on_submit():
-        photo_file = form.photo.data
-        photo_filename = None
+        image_file = request.files.get('photo') # .get('photo') avoids key error if no photo/image uploaded
+        filename = None
+        if image_file and image_file.filename:
+            filename = secure_filename(image_file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            image_file.save(filepath)
 
-        if photo_file:
-            filename = secure_filename(photo_file.filename)
-            photo_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            photo_filename = filename
+        from models import Animal
+        animal_obj = Animal.query.filter_by(name=form.animal.data).first()
+        if not animal_obj:
+            flash("Animal not found in database.", "error")
+            return render_template('add.html', form=form, animal_choices=ANIMAL_CHOICES)
 
-        # def try to handle empty inputs when submitting sightings
-        # Helper function to safely convert to float or return None
-        def safe_float(val):
-            try:
-                return float(val)
-            except (ValueError, TypeError):
-                return None
-
+        # Create new sighting using all form fields
         new_sighting = Sighting(
-            animal=form.animal.data,
-            date_time=form.date_time.data or None,
-            weather=form.weather.data or None,
-            wind=form.wind.data or None,
-            wind_speed=safe_float(form.wind_speed.data),
-            wind_direction=form.wind_direction.data or None,
-            humidity=form.humidity.data or None,
-            temperature=form.temperature.data or None,
-            location=form.location.data or None,
-            notes=form.notes.data or None,
-            marker_color=form.marker_color.data or None,
-            lat=safe_float(form.lat.data),
-            lng=safe_float(form.lng.data),
-            photo_filename=photo_filename
+            animal=animal_obj,
+            location=form.location.data,
+            date_time=form.date_time.data,
+            notes=form.notes.data,
+            photo_filename=filename,
+            weather=form.weather.data,
+            wind=form.wind.data,
+            wind_speed=form.wind_speed.data,
+            wind_direction=form.wind_direction.data,
+            humidity=form.humidity.data,
+            temperature=form.temperature.data,
+            marker_color=form.marker_color.data,
+            lat=form.lat.data,
+            lng=form.lng.data
         )
+
         db.session.add(new_sighting)
         db.session.commit()
-        return redirect(url_for('index'))
+        flash('Sighting added!')
+        return redirect(url_for('view_sightings'))
 
-    return render_template('add.html', form=form)
+    return render_template('add.html', form=form, animal_choices=ANIMAL_CHOICES)
 
-# ------------------------------
-# DELETE ROUTE ------------------------------------------------
-# Handles batch deletion of selected sightings
-# ------------------------------
+# VIEW SINGLE SIGHTING ===================================
 
 
-@app.route('/delete', methods=['POST'])
-def delete():
-    ids_to_delete = request.form.getlist('delete_ids')
-    if ids_to_delete:
-        for sighting_id in ids_to_delete:
-            sighting = Sighting.query.get(sighting_id)
-            if sighting:
-                db.session.delete(sighting)
-        db.session.commit()
-    return redirect(url_for('index'))
+@app.route('/sightings/<int:id>')
+def view_sighting(id):
+    sighting = Sighting.query.get_or_404(id)
+    return render_template('view_sighting.html', sighting=sighting)
 
 
-# ------------------------------------
-# ROUTE TO ADD NEW HARVEST -------------------------------------
-# ------------------------------
-
-
-@app.route('/add-harvest', methods=['GET', 'POST'])
-def add_harvest():
-    form = HarvestForm()
-    photo_filename = None
-
-    if form.validate_on_submit():
-        # ---- Handle uploaded photo ----
-        photo = form.photo.data
-        if photo:
-            photo_filename = secure_filename(photo.filename)
-            photo.save(os.path.join(app.config['UPLOAD_FOLDER'], photo_filename))
-
-        # Convert string inputs safely
-        def safe_float(val):
-            try:
-                return float(val)
-            except (ValueError, TypeError):
-                return None
-
-        new_harvest = Harvest(
-            animal=form.animal.data,
-            date_time=form.date_time.data or None,
-            weapon_type=form.weapon_type.data or None,
-            caliber=form.caliber.data or None,
-            broadhead=form.broadhead.data or None,
-            shot_lat=safe_float(form.shot_lat.data),
-            shot_lng=safe_float(form.shot_lng.data),
-            recovery_lat=safe_float(form.recovery_lat.data),
-            recovery_lng=safe_float(form.recovery_lng.data),
-            distance_traveled=safe_float(form.distance_traveled.data),
-            notes=form.notes.data or None,
-            marker_color=form.marker_color.data or "#2e7d32",
-            photo_filename=photo_filename
-        )
-        db.session.add(new_harvest)
-        db.session.commit()
-        # flash message
-        flash("Harvest successfully logged!", "success")
-        return redirect(url_for('view_harvests')) # redirect to your home or harvest view page
-
-    # This part makes red flash message show up
-    if form.errors:
-        flash("Please correct the errors below and resubmit.", "danger")
-
-    return render_template('add_harvest.html', form=form)
-
-
-@app.route('/harvests')
-def view_harvests():
-    # Order harvests by date_time descending (newest first)
-    harvests = Harvest.query.order_by(Harvest.date_time.desc()).all()
-
-    # gt the latest harvest ID to highlight in the table
-    latest_id = harvests[0].id if harvests else None
-
-    harvests_json = [harvest_to_dict(h) for h in harvests]
-    return render_template('view_Harvests.html', harvests=harvests, harvests_json=harvests_json, latest_id=latest_id)
-
-# ----------------------------------------
-# EDIT ROUTES - EDIT SIGHTING AND EDIT HARVEST
-# ----------------------------------------
-# EDIT HARVEST ROUTE
-
-
-@app.route("/edit-harvest/<int:harvest_id>", methods=['GET', 'POST'])
-def edit_harvest(harvest_id):
-    harvest = Harvest.query.get_or_404(harvest_id)
-    form = HarvestForm(obj=harvest)
-
-    if form.validate_on_submit():
-        form.populate_obj(harvest)
-        db.session.commit()
-        flash("Harvest udated!", "success")
-        return redirect(url_for("view_harvest", harvest_id=harvest.id))
-
-    return render_template("edit_harvest.html", form=form, harvest=harvest)
-
-
-# -------------------------------------
-# EDIT SIGHTINGS ROUTE ----
-# -------------------------------------
-
-
-@app.route("/edit-sighting/<int:sighting_id>", methods=['GET', 'POST'])
-def edit_sighting(sighting_id):
-    sighting = Sighting.query.get_or_404(sighting_id)
+# EDIT SIGHTING ==============================================
+@app.route('/sightings/<int:id>/edit', methods=['GET', 'POST'])
+def edit_sighting(id):
+    sighting = Sighting.query.get_or_404(id)
     form = SightingForm(obj=sighting)
 
     if form.validate_on_submit():
-        form.populate_obj(sighting)
+        # sighting.animal = form.animal.data
+        animal_obj = Animal.query.filter_by(name=form.animal.data).first()
+        sighting.animal = animal_obj
+        sighting.location = form.location.data
+        sighting.date_time = form.date_time.data
+        sighting.notes = form.notes.data
+
+        image_file = request.files.get('photo')
+        if image_file and image_file.filename:
+            filename = secure_filename(image_file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            image_file.save(filepath)
+            sighting.image = filename
+
         db.session.commit()
-        flash("Sighting updated!", "success")
-        return redirect(url_for("view_Sighting", sighting_id=sighting.id))
+        flash('Sighting updated!')
+        return redirect(url_for('view_sighting', id=id))
 
     return render_template('edit_sighting.html', form=form, sighting=sighting)
 
 
-# ------------------------------
-# View Single Harvest - let you redirect to a detailed view after editing or adding
-# -----------------------------
+# DELETE SIGHTING ===============================================
 
 
-@app.route('/harvest/<int:harvest_id>')
-def view_harvest(harvest_id):
-    harvest = Harvest.query.get_or_404(harvest_id)
-    return render_template('view_Harvest.html', harvest=harvest)
-
-
-# -----------------------
-# View Single Sighting - redirect to a detailed view after editing or adding
-# -----------------------
-@app.route('/sighting/<int:sighting_id>')
-def view_sighting(sighting_id):
-    sighting = Sighting.query.get_or_404(sighting_id)
-    return render_template('view_sighting.html', sighting=sighting)
-
-
-#------------------------------
-# DELETE SINGLE SIGHTING
-# -----------------------------
-
-
-@app.route("/delete-sighing/<int:sighting_id>", methods=["POST"])
-def delete_sighting(sighting_id):
-    sighting = Sighting.query.get_or_404(sighting_id)
+@app.route('/sightings/<int:id>/delete', methods=['POST'])
+def delete_sighting(id):
+    sighting = Sighting.query.get_or_404(id)
     db.session.delete(sighting)
     db.session.commit()
-    flash("Sighting deleted!", "info")
-    return redirect(url_for("index"))
+    flash('Sighting deleted!')
+    return redirect(url_for('view_sightings'))
 
 
-# -----------------------------
-# DELETE SINGLE HARVEST
-# -----------------------------
+# ---------------------------------------------------------
+# HARVEST ROUTES
+# ---------------------------------------------------------
+
+# VIEW ALL HARVESTS ========================================
+@app.route('/view-harvests')
+def view_all_harvests():
+    harvests = Harvest.query.all()
+
+    # Convert to JSON-serializable list
+    harvests_json = [
+        {
+            'id': h.id,
+            'animal': h.animal,
+            'date_time': h.date_time.strftime('%Y-%m-%d') if h.date else '',
+            'location': h.location,
+            'weight': h.weight,
+            'notes': h.notes,
+        } for h in harvests
+    ]
+
+    return render_template('view_harvests.html', harvests=harvests, harvests_json=harvests_json)
 
 
-@app.route("/delete-harvest/<int:harvest_id>", methods=["POST"])
-def delete_harvest(harvest_id):
-    harvest = Harvest.query.get_or_404(harvest_id)
+# ADD HARVEST ====================================================
+@app.route('/harvests/add', methods=['GET', 'POST'])
+def add_harvest():
+    form = HarvestForm()
+
+    if form.validate_on_submit():
+        photo_file = request.files['photo']
+        filename = secure_filename(photo_file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        photo_file.save(filepath)
+
+        new_harvest = Harvest(
+            harvest_name=form.harvest_name.data,
+            animal=form.animal.data,
+            date_time=form.date_time.data,
+            weapon_type=form.weapon_type.data,
+            other_weapon_type=form.other_weapon_type.data,
+            caliber=form.caliber.data,
+            other_caliber=form.other_caliber.data,
+            broadhead=form.broadhead.data,
+            other_broadhead=form.other_broadhead.data,
+            weather=form.weather.data,
+            wind_speed=form.wind_speed.data,
+            wind_direction=form.wind_direction.data,
+            humidity=form.humidity.data,
+            notes=form.notes.data,
+            photo=filename,
+            marker_color=form.marker_color.data,
+            distance_traveled=form.distance_traveled.data,
+            shot_lat=form.shot_lat.data,
+            shot_lng=form.shot_lng.data,
+            recovery_lat=form.recovery_lat.data,
+            recovery_lng=form.recovery_lng.data
+        )
+        db.session.add(new_harvest)
+        db.session.commit()
+        flash('Harvest successfully added!', 'success')
+        return redirect(url_for('view_harvests'))
+
+    return render_template('add_harvest.html', form=form)
+
+# VIEW SINGLE HARVEST =============================================
+
+
+@app.route('/harvests/<int:id>')
+def view_harvest(id):
+    harvest = Harvest.query.get_or_404(id)
+    return render_template('view_harvest.html', harvest=harvest)
+
+# EDIT HARVEST ================================================
+
+
+@app.route('/harvests/<int:id>/edit', methods=['GET', 'POST'])
+def edit_harvest(id):
+    harvest = Harvest.query.get_or_404(id)
+    form = HarvestForm(obj=harvest)
+
+    if form.validate_on_submit():
+        harvest.animal = form.animal.data
+        harvest.location = form.location.data
+        harvest.date_time = form.date_time.data
+        harvest.method = form.method.data
+        harvest.notes = form.notes.data
+
+        db.session.commit()
+        flash('Harvest updated!')
+        return redirect(url_for('view_harvest', id=id))
+
+    return render_template('edit_harvest.html', form=form, harvest=harvest)
+
+# ---------------------------------------------
+# DELETE HARVEST ROUTE
+# ---------------------------------------------
+
+
+@app.route('/harvests/<int:id>/delete', methods=['POST'])
+def delete_harvest(id):
+    harvest = Harvest.query.get_or_404(id)
     db.session.delete(harvest)
     db.session.commit()
-    flash("Harvest deleted!", "info")
-    return redirect(url_for("view_harvests"))
+    flash('Harvest deleted!')
+    return redirect(url_for('view_all_harvests'))
 
-# ------------------------------
-# RUN FLASK APP
-# ------------------------------
 
+# -----------------------
+# Run the App
+# -----------------------
 
 if __name__ == '__main__':
-    # Only run once to create database tables:
     with app.app_context():
         db.create_all()
     app.run(debug=True)
