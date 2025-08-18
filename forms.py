@@ -10,7 +10,6 @@ from wtforms import (
     StringField,
     SelectField,
     SubmitField,
-    FloatField,
     TextAreaField,
     DateTimeLocalField,
     FileField,
@@ -72,9 +71,8 @@ ANIMAL_CHOICES = {
     ]
 }
 
-
-# Flattened the dictionary into list of tuples for SelectField
-# Converts it to format: [('Deer', 'Deer'), so on
+# Flat list where value == label so it matches the Animal table exactly
+FLAT_ANIMALS = [(name, name) for group in ANIMAL_CHOICES.values() for name in group]
 
 
 # Complete form with SelectField using flat list
@@ -91,7 +89,7 @@ class SightingForm(FlaskForm):
         validators=[DataRequired()]
     )
 
-    # Animal field (will be populated via JavaScript)
+    # Animal field - populated dynamically in the view/JS based on category
     animal = SelectField(
         'Animal',
         choices=[("", "Select an animal first")],
@@ -111,17 +109,19 @@ class SightingForm(FlaskForm):
     temperature = StringField('Temperature', validators=[Optional()])
 
     # Sightings form class wind speed and validation
-    wind_speed = SelectField('Wind Speed (mph)', choices=[
-        ("", "Select a wind speed"),
-        *[(f"{i} mph", f"{i} mph") for i in range(0, 55, 5)],
-        ("55+ mph", "55+ mph")
-    ], validators=[Optional()])
+    wind_speed = SelectField(
+        'Wind Speed (mph)',
+        choices=[("", "Select a wind speed")] + [(f"{i} mph", f"{i} mph") for i in range(0, 55, 5)] + [
+            ("55+ mph", "55+ mph")],
+        validators=[Optional()]
+    )
 
     # Sightings form class humidity section and validators
-    humidity = SelectField('Humidity (%)', choices=[
-        ("", "Select humidity"),
-        *[(f"{i}%", f"{i}%") for i in range(0, 105, 5)]
-    ], validators=[Optional()])
+    humidity = SelectField(
+        'Humidity (%)',
+        choices=[("", "Select humidity")] + [(f"{i}%", f"{i}%") for i in range(0, 105, 5)],
+        validators=[Optional()]
+    )
 
     # Sightings class form validators
     location = StringField('Location', validators=[Optional()])
@@ -129,6 +129,7 @@ class SightingForm(FlaskForm):
     marker_color = StringField('Marker Color', widget=ColorInput(), validators=[Optional()])
     lat = HiddenField('Latitude')
     lng = HiddenField('Longitude')
+
     photo = FileField(
         'Photo (optional)',
         validators=[
@@ -150,89 +151,60 @@ class HarvestForm(FlaskForm):
     harvest_name = StringField('Harvest Name', validators=[DataRequired(), Length(max=100)])
 
     # Animal Input
-    animal = SelectField('Animal', choices=[
-        ("", "Select animal"),
-        ("American Bison", "American Bison"),
-        ("Black Bear", "Black Bear"),
-        ("Brown Bear", "Brown Bear"),
-        ("Caribou", "Caribou"),
-        ("Cougar", "Cougar"),
-        ("Elk", "Elk"),
-        ("Moose", "Moose"),
-        ("Mule Deer", "Mule Deer"),
-        ("Pronghorn", "Pronghorn"),
-        ("Whitetail Deer(Buck)", "Whitetail Deer(Buck)"),
-        ("Whitetail Deer(Doe)", "Whitetail Deer(Doe)"),
-        ("Whitetail Deer(Button Buck)", "Whitetail Deer(Button Buck)"),
-        ("Wild Boar", "Wild Boar"),
-        ("Beaver", "Beaver"),
-        ("Cottontail", "Cottontail"),
-        ("Crow", "Crow"),
-        ("Groundhog", "Groundhog"),
-        ("Opossum", "Opossum"),
-        ("Porcupine", "Porcupine"),
-        ("Rabbit", "Rabbit"),
-        ("Raccoon", "Raccoon"),
-        ("Squirrel", "Squirrel"),
-        ("Bobwhite Quail", "Bobwhite Quail"),
-        ("Chukar Partridge", "Chukar Partridge"),
-        ("Grouse", "Grouse (Ruffed, Sage, Spruce, Sharp-Tailed)"),
-        ("Hungarian Partridge", "Hungarian Partridge"),
-        ("Pheasant", "Pheasant"),
-        ("Ptarmigan", "Ptarmigan"),
-        ("Turkey", "Turkey"),
-        ("Woodcock", "Woodcock"),
-        ("Duck", "Duck"),
-        ("Goose", "Goose"),
-        ("Brant", "Brant"),
-        ("Mergansers", "Mergansers"),
-        ("Coyote", "Coyote"),
-        ("Fox", "Fox"),
-        ("Bobcat", "Bobcat"),
-        ("Nutria", "Nutria"),
-        ("Other", "Other")
-    ], validators=[DataRequired()])
+    # keep in sync with Animal table by using the flattened list
+    animal = SelectField('Animal', choices=[("", "Select animal")] + FLAT_ANIMALS, validators=[DataRequired()])
 
+    # harvest date/time
     date_time = DateTimeLocalField(
         'Date/Time',
         format='%Y-%m-%dT%H:%M',
         validators=[Optional()],
-        description='Local time when sighting occurred'
+        description='Local time when harvest occurred'
     )
 
+    # harvest weather
     weather = StringField('Weather', validators=[Optional()])
 
-    wind_speed = SelectField('Wind Speed (mph)', choices=[
-        ("", "Select a wind speed"),
-        *[(f"{i} mph", f"{i} mph") for i in range(0, 55, 5)],
-        ("55+ mph", "55+ mph")
-    ], validators=[Optional()])
+    # Harvest wind speed
+    wind_speed = SelectField(
+        'Wind Speed (mph)',
+        choices=[("", "Select a wind speed")] + [(f"{i} mph", f"{i} mph") for i in range(0, 55, 5)] + [
+            ("55+ mph", "55+ mph")],
+        validators=[Optional()]
+    )
 
+    # Harvest wind direction
     wind_direction = StringField('Wind Direction', validators=[Optional()])
 
-    humidity = SelectField('Humidity (%)', choices=[
-        ("", "Select humidity"),
-        *[(f"{i}%", f"{i}%") for i in range(0, 105, 5)]
-    ], validators=[Optional()])
+    # Harvest humidity
+    humidity = SelectField(
+        'Humidity (%)',
+        choices=[("", "Select humidity")] + [(f"{i}%", f"{i}%") for i in range(0, 105, 5)],
+        validators=[Optional()]
+    )
 
-    weapon_type = SelectField('Weapon Type', choices=[
-        ('', 'Select weapon type'),
-        ('Recurve Bow', 'Recurve Bow'),
-        ('Longbow', 'Longbow'),
-        ('Compound Bow', 'Compound Bow'),
-        ('Crossbow', 'Crossbow'),
-        ('Shotgun', 'Shotgun'),
-        ('Rifle', 'Rifle'),
-        ('Muzzleloader', 'Muzzleloader'),
-        ('Other', 'Other')
-    ], validators=[Optional()])
+    # Weapon / Caliber / Broadhead
+    weapon_type = SelectField(
+        'Weapon Type',
+        choices=[
+            ('', 'Select weapon type'),
+            ('Recurve Bow', 'Recurve Bow'),
+            ('Longbow', 'Longbow'),
+            ('Compound Bow', 'Compound Bow'),
+            ('Crossbow', 'Crossbow'),
+            ('Shotgun', 'Shotgun'),
+            ('Rifle', 'Rifle'),
+            ('Muzzleloader', 'Muzzleloader'),
+            ('Other', 'Other')
+        ], validators=[Optional()]
+    )
 
     other_weapon_type = StringField(
         'If "Other", specify weapon type',
         validators=[Optional()],
         render_kw={"placeholder": "e.g. Slingbow"}
     )
-
+    # Caliber selector
     caliber = SelectField('Caliber / Gauge', choices=[
         ("", "Select caliber or Gauge"),
         ("12ga", "12 Gauge"),
@@ -246,12 +218,14 @@ class HarvestForm(FlaskForm):
         ("Other", "Other")
     ], validators=[Optional()])
 
+    # Other caliber input
     other_caliber = StringField(
         'If "Other", specifically caliber',
         validators=[Optional()],
         render_kw={"placeholder": "e.g. .450 Bushmaster"}
     )
 
+    # Broadhead selector
     broadhead = SelectField('Broadhead Type', choices=[
         ('', 'Select broadhead type'),
         ('Fixed Blade', 'Fixed Blade'),
@@ -260,20 +234,30 @@ class HarvestForm(FlaskForm):
         ('Other', 'Other')
         ], validators=[Optional()])
 
+    # Other broadhead input
     other_broadhead = StringField(
         'If "Other", specify broadhead',
         validators=[Optional()],
         render_kw={'placeholder': 'e.g. Rage Hypodermic'}
     )
 
+    # Free text location to complement map coords
+    location = StringField('Location', validators=[Optional()])
+
     shot_lat = HiddenField('Shot Latitude')         # changed to HiddenField for map integration
     shot_lng = HiddenField('Shot Longitude')
     recovery_lat = HiddenField('Recovery Latitude')
     recovery_lng = HiddenField('Recovery Longitude')
+
     distance_traveled = StringField('Distance Traveled (yards)', validators=[Optional()])
+
     notes = TextAreaField('Notes', validators=[Optional()])
+
     photo = FileField('Upload Photo', validators=[Optional(), FileAllowed(['jpg', 'jpeg', 'png', 'gif'],
     'Images only!')])
+
     marker_color = StringField('Marker Color', widget=ColorInput(), validators=[Optional()])
+
+    submit = SubmitField('Submit')
 
 

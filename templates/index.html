@@ -1,188 +1,208 @@
 <!--
 index.html (view sightings)
-Page for viewing all the sighting in DB
-
+Page for viewing all the sightings in DB
+Purpose: List all sightings, filter/sort, preview photos, and show them on a Leaflet map.
+Step 1: Escape values in onclick with |tojson for safety
+Step 2: Fallback color for the marker swatch in the table
+Step 3: Flash messages block to display Flask `flash(...)` calls
+Step 4: CSRF in per-row delete from; uses {{ csrf_token() }}
+Step 5: Awesome Markers is optional can remove it if needed
 -->
 <!DOCTYPE html>
 <html>
-
 <head>
-    <title>Game Tracker</title>
-    <!-- Link to custom CSS file -->
-    <link rel="stylesheet" href="/static/style.css">
-    <!-- Leaflet CSS (keep this in <head> ideally) -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <!-- Awesome Markers (for colored icons) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.js"></script>
-</head>
+  <title>Game Tracker</title>
 
+  <!-- Style sheet styles link -->
+  <link rel="stylesheet" href="/static/style.css">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <!-- Awesome Markers (if you later use it for icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.css">
+</head>
 <body>
 
-<!-- Link to return to main page -->
+<!-- Simple nav back home -->
 <p><a href="{{ url_for('home') }}">← Back to Main Page</a></p>
 
-<!-- Page Header -->
-    <h1>Sightings Log</h1>
+<!-- Page Heading -->
+<h1>Sightings Log</h1>
 
-    <!-- Link to Add New Sighting Form -->
-    <a href="{{ url_for('add_sighting') }}">Add New Sighting</a>
+<!-- Link to the add-sighting form -->
+<a href="{{ url_for('add_sighting') }}">Add New Sighting</a>
 
-    <!-- Dropdown for filtering by animal -->
-    <!-- Filer + Sort Form -->
-    <!-- This form filters the table based on selected animal and sorts sightings by date -->
-    <form method="GET" action="{{ url_for('view_sightings') }}">
-        <!-- Filter by Animal Dropdown -->
-        <label for="animal">Filter by Animal</label>
-        <select name="animal">
-            <option value="">-- All Animals --</option>
-            {% for animal in unique_animals %}
-            <option value="{{ animal }}" {% if animal_filter == animal %}selected{% endif %}>{{ animal }}</option>
-            {% endfor %}
-        </select>
+<!-- FLASH MESSAGES (shows success/error toasts) -->
+{% with msgs = get_flashed_messages(with_categories=true) %}
+  {% if msgs %}
+    <ul class="flashes">
+      {% for category, msg in msgs %}
+        <li class="flash {{ category }}">{{ msg }}</li>  {# <-- fix here #}
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
 
-    <label for="sort">Sort by Date:</label>
-    <select name="sort">
-        <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>Newest First</option>
-        <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>Oldest First</option>
-    </select>
+<!-- FILTER + SORT FORM (GET) to narrow results in the table/map -->
+<form method="GET" action="{{ url_for('view_sightings') }}">
+  <label for="animal">Filter by Animal</label>
+  <select name="animal">
+    <option value="">-- All Animals --</option>
+    {% for animal in unique_animals %}
+      <option value="{{ animal }}" {% if animal_filter == animal %}selected{% endif %}>{{ animal }}</option>
+    {% endfor %}
+  </select>
 
-    <button type="submit">Apply</button>
-    </form>
+  <label for="sort">Sort by Date:</label>
+  <select name="sort">
+    <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>Newest First</option>
+    <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>Oldest First</option>
+  </select>
 
-    <!-- Form for deleting selected sightings -->
-    <!-- Allow user to select sightings and delete them -->
-    <form method="POST" action="/delete">
-    <table border="1">
-        <!--Table header -->
-        <thead>
-        <tr>
-            <th>Select</th>
-            <th>Animal</th>
-            <th>Date/Time</th>
-            <th>Weather</th>
-            <th>Wind</th>
-            <th>Wind Speed</th>
-            <th>Wind Direction</th>
-            <th>Humidity</th>
-            <th>Temperature</th>
-            <th>Location</th>
-            <th>Notes</th>
-            <th>Marker</th> <!-- shows marker color -->
-            <th>Photo</th>
-            <th>Actions</th>
-        </tr>
-        </thead>
+  <button type="submit">Apply</button>
+</form>
 
-        <!-- Table Rows (Populated with Sightings) -->
-        <tbody>
-        {% for sighting in sightings %}
-        <tr>
-            <td><input type="checkbox" name="delete_ids" value="{{ sighting.id }}"></td>
-            <td>{{ sighting.animal }}</td>
-            <td>{{ sighting.date_time }}</td>
-            <td>{{ sighting.weather }}</td>
-            <td>{{ sighting.wind }}</td>
-            <td>{{ sighting.wind_speed }}</td>
-            <td>{{ sighting.wind_direction }}</td>
-            <td>{{ sighting.humidity }}</td>
-            <td>{{ sighting.temperature }}</td>
-            <td>{{ sighting.location }}</td>
-            <td>{{ sighting.notes }}</td>
-            <td>
-        <div style="width: 20px; height: 20px; background-color: {{ sighting.marker_color }}; border: 1px solid #333;"></div>
-    </td>
-    <td>
-    {% if sighting.photo_filename %}
-        <img src="{{ url_for('static', filename='uploads/' ~ sighting.photo_filename) }}"
-             alt="Sighting Photo"
-             class="photo-thumb"
-             width="25"
-             onclick="openModal('{{ url_for('static', filename='uploads/' ~ sighting.photo_filename) }}', '{{ sighting.animal }}', '{{ sighting.date_time }}')">
-    {% else %}
-        No Photo
-    {% endif %}
-</td>
-<td>
-    <!-- New View Button -->
-    <a href="{{ url_for('view_sighting', id=sighting.id) }}">View</a>
-</td>
-</tr>
-{% endfor %}
-        </tbody>
-    </table>
+<!-- TABLE OF SIGHTINGS
+      step 1: safe onlclick args via |tojson
+      step 2: fallback color for the color swatch
+      step 3: per-row delete with csrf token -->
+<table border="1">
+  <thead>
+    <tr>
+      <th>Animal</th>
+      <th>Date/Time</th>
+      <th>Weather</th>
+      <th>Wind</th>
+      <th>Wind Speed</th>
+      <th>Wind Direction</th>
+      <th>Humidity</th>
+      <th>Temperature</th>
+      <th>Location</th>
+      <th>Notes</th>
+      <th>Marker</th>
+      <th>Photo</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for sighting in sightings %}
+    <tr>
+      <td>{{ sighting.animal.name if sighting.animal else '' }}</td> <!-- <<< CHANGED -->
+      <td>{{ sighting.date_time.strftime('%Y-%m-%d %H:%M') if sighting.date_time else '' }}</td> <!-- <<< CHANGED -->
+      <td>{{ sighting.weather }}</td>
+      <td>{{ sighting.wind }}</td>
+      <td>{{ sighting.wind_speed }}</td>
+      <td>{{ sighting.wind_direction }}</td>
+      <td>{{ sighting.humidity }}</td>
+      <td>{{ sighting.temperature }}</td>
+      <td>{{ sighting.location }}</td>
+      <td>{{ sighting.notes }}</td>
+      <td>
+        <!-- Step 2: Fallback color '#3388ff' if marker_color is empty -->
+        <div style="width:20px;height:20px;background-color:{{ sighting.marker_color or '#3388ff' }};border:1px solid #333;"></div>
+      </td>
+      <td>
+        {% if sighting.photo_filename %}
+          <!-- Step 1: Use |tojson to safely pass values to onlick -->
+          <img
+            src="{{ url_for('static', filename='uploads/' ~ sighting.photo_filename) }}"
+            alt="Photo of {{ sighting.animal.name if sighting.animal else 'sighting' }}"
+            class="photo-thumb"
+            width="25"
+            onclick="openModal(
+              {{ url_for('static', filename='uploads/' ~ sighting.photo_filename)|tojson }},
+              {{ (sighting.animal.name if sighting.animal else '')|tojson }},
+              {{ (sighting.date_time.strftime('%Y-%m-%d %H:%M') if sighting.date_time else '')|tojson }}
+            )">
+        {% else %}
+          No Photo
+        {% endif %}
+      </td>
+      <td>
+        <a href="{{ url_for('view_sighting', id=sighting.id) }}">View</a>
+        <!-- per-row delete form with CSRF token (CSRF protected) -->
+        <form method="POST" action="{{ url_for('delete_sighting', id=sighting.id) }}" style="display:inline;">
+          {{ csrf_token() }}
+          <button type="submit" onclick="return confirm('Delete this sighting?')">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
 
-        <!-- Delete Submit Button for Deletion -->
-     <button type="submit" onclick="return confirm('Are you sure you want to delete the selected sightings?')">Delete Selected</button>
-    </form>
-
-<!-- Map Section -->
-<!-- Displays all sightings on a leaflet map -->
+<!-- MAP OF SIGHTINGS (leaflet) ============================================ -->
 <h2>Map of Sightings</h2>
 <div id="map" style="height: 400px;"></div>
 
+<!-- Leaflet JS must be before Awesome Markers JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script> <!-- <<< CHANGED: order -->
 
+<!-- STEP 5: Awesome Markers JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.js"></script>
 
-<!-- Leaflet JS for interactive map features -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script>
-    // Sightings data passed from Flask as JSON
-    const sightings = {{ sightings_json|tojson }};
+  // Data from Flask (already stringified safely by Jinja's tojson filter server-side)
+  const sightings = {{ sightings_json|tojson }};
 
-    // Initialize map centered on MN area
-    const map = L.map('map').setView([45, -93], 6);
+  // Initialize map centered on MN area
+  const map = L.map('map').setView([45, -93], 6);
 
-    // Add OpenStreetMap tiles to the map
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  // Add OpenStreetMap tiles to the map
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Loop through all sightings and add markers
-    sightings.forEach(s => {
+  // Add markers
+  // Render circle markers for each sighting
+  sightings.forEach(s => {
     const lat = parseFloat(s.lat);
     const lng = parseFloat(s.lng);
     const markerColor = s.marker_color || '#2e7d32';
 
     if (!isNaN(lat) && !isNaN(lng)) {
-        L.circleMarker([lat, lng], {
-            radius: 10,
-            fillColor: markerColor,
-            color: markerColor,
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
-        }).addTo(map)
-          .bindPopup(`<strong>${s.animal}</strong><br>${s.date_time}`);
+      L.circleMarker([lat, lng], {
+        radius: 10,
+        fillColor: markerColor,
+        color: markerColor,
+        weight: 1,
+        opacity: 1,
+        fillOpacity: 0.8
+      }).addTo(map)
+        .bindPopup(`<strong>${s.animal ?? ''}</strong><br>${s.date_time ?? ''}`);
     }
-});
+  });
 </script>
 
-<!-- Modal Structure -->
+<!-- PHOTO MODAL (click thumbnail -> show full image + details)  -->
 <div id="photoModal" class="modal">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal()">&times;</span>
-        <img id="modalImage" src="" alt="Full Image">
-        <p id="modalDetails"></p>
-    </div>
+  <div class="modal-content">
+    <span class="close" onclick="closeModal()">&times;</span>
+    <img id="modalImage" src="" alt="Full Image">
+    <p id="modalDetails"></p>
+  </div>
 </div>
 
-<!-- Modal JavaScript -->
+<!-- Modal JS -->
 <script>
-    function openModal(imageUrl, animal, dateTime) {
-        document.getElementById('modalImage').src = imageUrl;
-        document.getElementById('modalDetails').textContent = `${animal} - ${dateTime}`;
-        document.getElementById('photoModal').style.display = 'block';
-    }
+  // Open modal with image + details (animal, date/time)
+  function openModal(imageUrl, animal, dateTime) {
+    document.getElementById('modalImage').src = imageUrl;
+    document.getElementById('modalDetails').textContent = `${animal} - ${dateTime}`;
+    document.getElementById('photoModal').style.display = 'block';
+  }
 
-    function closeModal() {
-        document.getElementById('photoModal').style.display = 'none';
-    }
+  // Close modal
+  function closeModal() {
+    document.getElementById('photoModal').style.display = 'none';
+  }
 
-    // Close when clicking outside modal
-    window.onclick = function(event) {
-        const modal = document.getElementById('photoModal');
-        if (event.target === modal) {
-            modal.style.display = "none";
-        }
-    };
+  // Close when clicking outside modal
+  window.onclick = function(event) {
+    const modal = document.getElementById('photoModal');
+    if (event.target === modal) {
+      modal.style.display = "none";
+    }
+  };
 </script>
 
 </body>

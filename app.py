@@ -19,6 +19,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Database config - ENVIRONMENT VARIABLES
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///wildlife.db')
+
 # Initialize extension
 db.init_app(app)
 csrf = CSRFProtect(app) # CSRF protection
@@ -39,7 +40,7 @@ def handle_file_upload(file_field):
         except Exception as e:
             flash('File upload failed: ' + str(e), 'error')
             return None
-        return None
+    return None
 
 # --------
 # Utilities
@@ -47,6 +48,14 @@ def handle_file_upload(file_field):
 
 
 def safe_float(val):
+    """
+    Safely convert "val" to "float".
+    Returns 'None' when 'val' is 'None' or an empty string mirroring
+    typical form behavior where missing fields come through as empty values.
+    Any value that cannot be converted to 'float' will also result in 'None'
+    """
+    if val in (None, ""):
+        return None
     try:
         return float(val)
     except (ValueError, TypeError):
@@ -86,9 +95,9 @@ def view_sightings():
 
     # Apply sort
     if sort_order == 'asc':
-        sightings_query = sightings_query.order(Sighting.date_time.asc())
+        sightings_query = sightings_query.order_by(Sighting.date_time.asc())  # <<< CHANGED
     else:
-        sightings_query = sightings_query.order_by(Sighting.date_time.desc())
+        sightings_query = sightings_query.order_by(Sighting.date_time.desc())  # <<< CHANGED (ensure order_by)
 
     sightings = sightings_query.all()
 
@@ -96,10 +105,10 @@ def view_sightings():
     sightings_json = [
         {
             'id': s.id,
-            "marker_color": s.marker_color,
+            'marker_color': s.marker_color,
             'animal': s.animal.name if s.animal else None,
             'location': s.location,
-            'date_time': s.date_time.strftime('%Y-%m-%d %H:%M'),
+            'date_time': s.date_time.strftime('%Y-%m-%d %H:%M') if s.date_time else '',  # <<< CHANGED: guard None
             'lat': s.lat,
             'lng': s.lng,
             'notes': s.notes,
@@ -128,8 +137,6 @@ def add_sighting():
     form = SightingForm()
 
     # Dynamically update animal choices based on selected category
-    # if request.method == 'POST':
-    # Always set animal choices if category is selected (GET or POST)
     selected_category = request.form.get('animal_category') or form.animal_category.data
     if selected_category in ANIMAL_CHOICES:
         form.animal.choices = [(a, a) for a in ANIMAL_CHOICES[selected_category]]
@@ -137,14 +144,10 @@ def add_sighting():
         form.animal.choices = []
 
     if form.validate_on_submit():
-        image_file = request.files.get('photo') # .get('photo') avoids key error if no photo/image uploaded
-        filename = None
-        if image_file and image_file.filename:
-            filename = secure_filename(image_file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            image_file.save(filepath)
+        image_file = request.files.get('photo')  # .get avoids KeyError
+        filename = handle_file_upload(image_file)  # <<< CHANGED: use helper
 
-        from models import Animal
+        # find Animal by name
         animal_obj = Animal.query.filter_by(name=form.animal.data).first()
         if not animal_obj:
             flash("Animal not found in database.", "error")
@@ -152,7 +155,7 @@ def add_sighting():
 
         # Create new sighting using all form fields
         new_sighting = Sighting(
-            animal=animal_obj,
+            animal=animal_obj,  # relationship sets animal_id
             location=form.location.data,
             date_time=form.date_time.data,
             notes=form.notes.data,
@@ -164,8 +167,8 @@ def add_sighting():
             humidity=form.humidity.data,
             temperature=form.temperature.data,
             marker_color=form.marker_color.data,
-            lat=form.lat.data,
-            lng=form.lng.data
+            lat=safe_float(form.lat.data),
+            lng=safe_float(form.lng.data)
         )
 
         db.session.add(new_sighting)
@@ -190,20 +193,47 @@ def edit_sighting(id):
     sighting = Sighting.query.get_or_404(id)
     form = SightingForm(obj=sighting)
 
+    # Ensure choices include the current animal on GET
+    if request.method == 'GET' and sighting.animal:
+        current_cat = sighting.animal.animal_class
+        form.animal_category.data = current_cat
+        if current_cat in ANIMAL_CHOICES:
+            form.animal.choices = [(a, a) for a in ANIMAL_CHOICES[current_cat]]
+            form.animal.data = sighting.animal.name
+        else:
+            form.animal.choices = [("", "Select an animal first")]  # fallback
+    else:
+        # Keep animal choices coherent on GET/POST
+        selected_category = request.form.get('animal_category') or form.animal_category.data
+        if selected_category in ANIMAL_CHOICES:
+            form.animal.choices = [(a, a) for a in ANIMAL_CHOICES[selected_category]]
+        else:
+            form.animal.choices = [("", "Select an animal first")]  # fallback
+
     if form.validate_on_submit():
-        # sighting.animal = form.animal.data
         animal_obj = Animal.query.filter_by(name=form.animal.data).first()
+        if not animal_obj:
+            flash("Animal not found in database.", "error")
+            return render_template('edit_sighting.html', form=form, sighting=sighting)
+
         sighting.animal = animal_obj
         sighting.location = form.location.data
         sighting.date_time = form.date_time.data
         sighting.notes = form.notes.data
+        sighting.weather = form.weather.data
+        sighting.wind = form.wind.data
+        sighting.wind_speed = form.wind_speed.data
+        sighting.wind_direction = form.wind_direction.data
+        sighting.humidity = form.humidity.data
+        sighting.temperature = form.temperature.data
+        sighting.marker_color = form.marker_color.data
+        sighting.lat = safe_float(form.lat.data)
+        sighting.lng = safe_float(form.lng.data)
 
         image_file = request.files.get('photo')
-        if image_file and image_file.filename:
-            filename = secure_filename(image_file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            image_file.save(filepath)
-            sighting.image = filename
+        filename = handle_file_upload(image_file)
+        if filename:
+            sighting.photo_filename = filename
 
         db.session.commit()
         flash('Sighting updated!')
@@ -232,19 +262,30 @@ def delete_sighting(id):
 @app.route('/view-harvests')
 def view_all_harvests():
     harvests = Harvest.query.all()
-
-    # Convert to JSON-serializable list
     harvests_json = [
         {
             'id': h.id,
-            'animal': h.animal,
-            'date_time': h.date_time.strftime('%Y-%m-%d') if h.date else '',
+            'animal': h.animal.name if h.animal else None,
+            'harvest_name': h.harvest_name,
+            'date_time': h.date_time.strftime('%Y-%m-%d %H:%M') if h.date_time else '',
+            'weather': h.weather,
+            'wind_speed': h.wind_speed,
+            'wind_direction': h.wind_direction,
+            'humidity': h.humidity,
+            'weapon_type': h.weapon_type,
+            'caliber': h.caliber,
+            'broadhead': h.broadhead,
             'location': h.location,
-            'weight': h.weight,
+            'distance_traveled': h.distance_traveled,
             'notes': h.notes,
+            'photo_filename': h.photo_filename,
+            'marker_color': h.marker_color,
+            'shot_lat': h.shot_lat,
+            'shot_lng': h.shot_lng,
+            'recovery_lat': h.recovery_lat,
+            'recovery_lng': h.recovery_lng,
         } for h in harvests
     ]
-
     return render_template('view_harvests.html', harvests=harvests, harvests_json=harvests_json)
 
 
@@ -252,40 +293,43 @@ def view_all_harvests():
 @app.route('/harvests/add', methods=['GET', 'POST'])
 def add_harvest():
     form = HarvestForm()
-
     if form.validate_on_submit():
-        photo_file = request.files['photo']
-        filename = secure_filename(photo_file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        photo_file.save(filepath)
+        photo_file = request.files.get('photo')
+        filename = handle_file_upload(photo_file)
+
+        animal_obj = Animal.query.filter_by(name=form.animal.data).first()
+        if not animal_obj:
+            flash("Animal not found in database.", "error")
+            return render_template('add_harvest.html', form=form)
 
         new_harvest = Harvest(
+            animal=animal_obj,
             harvest_name=form.harvest_name.data,
-            animal=form.animal.data,
             date_time=form.date_time.data,
+            weather=form.weather.data,
+            wind_speed=form.wind_speed.data,
+            wind_direction=form.wind_direction.data,
+            humidity=form.humidity.data,
             weapon_type=form.weapon_type.data,
             other_weapon_type=form.other_weapon_type.data,
             caliber=form.caliber.data,
             other_caliber=form.other_caliber.data,
             broadhead=form.broadhead.data,
             other_broadhead=form.other_broadhead.data,
-            weather=form.weather.data,
-            wind_speed=form.wind_speed.data,
-            wind_direction=form.wind_direction.data,
-            humidity=form.humidity.data,
+            location=form.location.data,
+            shot_lat=safe_float(form.shot_lat.data),
+            shot_lng=safe_float(form.shot_lng.data),
+            recovery_lat=safe_float(form.recovery_lat.data),
+            recovery_lng=safe_float(form.recovery_lng.data),
+            distance_traveled=safe_float(form.distance_traveled.data),
             notes=form.notes.data,
-            photo=filename,
-            marker_color=form.marker_color.data,
-            distance_traveled=form.distance_traveled.data,
-            shot_lat=form.shot_lat.data,
-            shot_lng=form.shot_lng.data,
-            recovery_lat=form.recovery_lat.data,
-            recovery_lng=form.recovery_lng.data
+            photo_filename=filename,
+            marker_color=form.marker_color.data
         )
         db.session.add(new_harvest)
         db.session.commit()
         flash('Harvest successfully added!', 'success')
-        return redirect(url_for('view_harvests'))
+        return redirect(url_for('view_all_harvests'))
 
     return render_template('add_harvest.html', form=form)
 
@@ -306,17 +350,44 @@ def edit_harvest(id):
     form = HarvestForm(obj=harvest)
 
     if form.validate_on_submit():
-        harvest.animal = form.animal.data
-        harvest.location = form.location.data
+        animal_obj = Animal.query.filter_by(name=form.animal.data).first()
+        if not animal_obj:
+            flash("Animal not found in database.", "error")
+            return render_template('edit_harvest.html', form=form, harvest=harvest)
+        harvest.animal = animal_obj
+
+        harvest.harvest_name = form.harvest_name.data
         harvest.date_time = form.date_time.data
-        harvest.method = form.method.data
+        harvest.weather = form.weather.data
+        harvest.wind_speed = form.wind_speed.data
+        harvest.wind_direction = form.wind_direction.data
+        harvest.humidity = form.humidity.data
+        harvest.weapon_type = form.weapon_type.data
+        harvest.other_weapon_type = form.other_weapon_type.data
+        harvest.caliber = form.caliber.data
+        harvest.other_caliber = form.other_caliber.data
+        harvest.broadhead = form.broadhead.data
+        harvest.other_broadhead = form.other_broadhead.data
+        harvest.location = form.location.data
+        harvest.shot_lat = safe_float(form.shot_lat.data)
+        harvest.shot_lng = safe_float(form.shot_lng.data)
+        harvest.recovery_lat = safe_float(form.recovery_lat.data)
+        harvest.recovery_lng = safe_float(form.recovery_lng.data)
+        harvest.distance_traveled = safe_float(form.distance_traveled.data)
         harvest.notes = form.notes.data
+        harvest.marker_color = form.marker_color.data
+
+        photo_file = request.files.get('photo')
+        filename = handle_file_upload(photo_file)
+        if filename:
+            harvest.photo_filename = filename
 
         db.session.commit()
         flash('Harvest updated!')
         return redirect(url_for('view_harvest', id=id))
 
     return render_template('edit_harvest.html', form=form, harvest=harvest)
+
 
 # ---------------------------------------------
 # DELETE HARVEST ROUTE
@@ -339,4 +410,13 @@ def delete_harvest(id):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        # seed animals once on a fresh DB
+        from models import Animal
+        from forms import ANIMAL_CHOICES
+        # -------- optional DEV SEED (delete wildlife.db once, run, then you can remove) --------
+        if not Animal.query.first():  # <<< CHANGED: seed animals so selects work immediately
+            for category, names in ANIMAL_CHOICES.items():
+                for name in names:
+                    db.session.add(Animal(name=name, animal_class=category))
+            db.session.commit()
     app.run(debug=True)

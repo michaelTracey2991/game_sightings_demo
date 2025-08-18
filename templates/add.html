@@ -10,14 +10,11 @@ Uses Flask-WTF form rendering along with JavaScript powered map integration for 
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Add New Sighting</title>
+    <title>Add Sighting • Game Tracker</title>
+    <link rel="stylesheet" href="/static/style.css">
 
-    <!-- Return Button - view_sightings is index.html in app.py -->
-    <a href="{{ url_for('home') }}">← Back to Main Page</a>
-
-    <link rel="stylesheet" href="/static/style/style.css">
+    <!-- Leaflet CSS for the map -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
         .content-wrapper {
@@ -52,279 +49,243 @@ Uses Flask-WTF form rendering along with JavaScript powered map integration for 
             padding: 0;
             margin: 0 0 10px;
         }
+        .muted { color: #666; font-size: 0.9em; }
+        .form-row { margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+        .btn { padding: 8px 14px; border: 1px solid #888; border-radius: 6px; background: #f5f5f5; cursor: pointer; }
+        .btn:hover { background: #eee; }
+
+        @media (max-width: 900px) {
+         .content-wrapper { flex-direction: column; }
+        .map-section { position: static; top: auto; }
     </style>
 </head>
 <body>
 
-<h1 style="text-align: center; padding-top: 40px;">Add New Sighting</h1>
+    <!-- Back nav -->
+    <p><a href="{{ url_for('view_sightings') }}">← Back to Sightings</a></p>
 
-<div class="content-wrapper">
-    <div class="form-section">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <ul class="errors">
-              {% for category, message in messages %}
-                <li>{{ message }}</li>
-              {% endfor %}
+    <!-- Title -->
+    <h1 style="text-align: center; padding-top: 40px;">Add New Sighting</h1>
+
+    <!-- STEP 0: Flash Messages (show server-side notices) -->
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+        {% if msgs %}
+            <ul class="flashes">
+                {% for category, msg in msgs %}
+                    <li class="flash {{ category }}">{{ msg }}</li>
+                {% endfor %}
             </ul>
+        {% endif %}
+    {% endwith %}
+
+<!-- Two-column layout: form(left) + sticky map(right) ===================== -->
+<div class="content-wrapper">
+
+    <!-- ===== Left: the form ===== -->
+    <section class="form-section">
+      <!-- STEP 1: POST + multipart for uploads; hidden_tag() adds CSRF -->
+      <form method="POST" enctype="multipart/form-data">
+        {{ form.hidden_tag() }}
+
+        <!-- Category → Animal (dynamic) -->
+        <div class="form-row">
+          <label for="animal_category">{{ form.animal_category.label }}</label>
+          {{ form.animal_category(id="animal_category") }}
+          {% if form.animal_category.errors %}
+            <ul class="errors">{% for e in form.animal_category.errors %}<li>{{ e }}</li>{% endfor %}</ul>
           {% endif %}
-        {% endwith %}
+        </div>
 
-        <form method="POST" enctype="multipart/form-data">
-            {{ form.hidden_tag() }}
+        <div class="form-row">
+          <label for="animal">{{ form.animal.label }}</label>
+          {{ form.animal(id="animal") }}
+          {% if form.animal.errors %}
+            <ul class="errors">{% for e in form.animal.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
 
-            <!-- Animal Dropdown -->
-            <!-- Handles validation for errors -->
-            <label for="animal_category">Animal Category:</label>
-            <select name="{{ form.animal_category.name }}" id="animal_category" required>
-                {% for value, label in form.animal_category.choices %}
-                    <option value="{{ value }}" {% if form.animal_category.data == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-            {% if form.animal_category.errors %}
-                <ul class="errors">{% for error in form.animal_category.errors %}
-                    <li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
-            <!-- Step 2: Animal (populated via JavaScript) -->
-            <label for="animal">Animal:</label>
-            <select name="{{ form.animal.name }}" id="animal" required>
-                {% if form.animal.choices %}
-                    {% for value, label in form.animal.choices %}
-                        <option value="{{ value }}" {% if form.animal.data == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                {% else %}
-                    <option value="">Select an animal category first</option>
-                {% endif %}
-            </select>
-            {% if form.animal.errors %}
-                <ul class="errors">{% for error in form.animal.errors %}
-                <li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <!-- When -->
+        <div class="form-row">
+          <label for="date_time">{{ form.date_time.label }}</label>
+          {{ form.date_time(id="date_time") }}
+        </div>
 
-            <!-- Date/Time -->
-            <label for="date_time">Date/Time:</label>
-            {{ form.date_time(id="date_time") }}
-            {% if form.date_time.errors %}
-                <ul class="errors">{% for error in form.date_time.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <!-- Weather bits -->
+        <div class="form-row">
+          <label for="weather">{{ form.weather.label }}</label>
+          {{ form.weather(id="weather", placeholder="e.g., clear") }}
+        </div>
 
-            <!-- 🌤️ Weather -->
-            <label for="weather">Weather:</label>
-            <input type="text" name="{{ form.weather.name }}" id="weather" list="weather_options" value="{{ form.weather.data or '' }}">
-            <datalist id="weather_options">
-                {% for w in ["Sunny", "Cloudy", "Partly Cloudy", "Rain", "Snow", "Foggy", "Hail", "Windy"] %}
-                    <option value="{{ w }}">
-                {% endfor %}
-            </datalist>
-            {% if form.weather.errors %}
-                <ul class="errors">{% for error in form.weather.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <div class="form-row">
+          <label for="wind">{{ form.wind.label }}</label>
+          {{ form.wind(id="wind", placeholder="e.g., light breeze") }}
+        </div>
 
-            <!-- 💨 Wind -->
-            <label for="wind">Wind:</label>
-            <input type="text" name="{{ form.wind.name }}" id="wind" list="wind_options" value="{{ form.wind.data or '' }}">
-            <datalist id="wind_options">
-                {% for w in ["Calm", "Light Breeze", "Moderate Breeze", "Strong Breeze", "Gusty", "Windy"] %}
-                    <option value="{{ w }}">
-                {% endfor %}
-            </datalist>
-            {% if form.wind.errors %}
-                <ul class="errors">{% for error in form.wind.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <div class="form-row">
+          <label for="wind_speed">{{ form.wind_speed.label }}</label>
+          {{ form.wind_speed(id="wind_speed") }}
+        </div>
 
-            <!-- 🧭 Wind Direction -->
-            <label for="wind_direction">Wind Direction:</label>
-            <input type="text" name="{{ form.wind_direction.name }}" id="wind_direction" list="wind_direction_options" value="{{ form.wind_direction.data or '' }}">
-            <datalist id="wind_direction_options">
-                {% for direction in ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] %}
-                    <option value="{{ direction }}">
-                {% endfor %}
-            </datalist>
-            {% if form.wind_direction.errors %}
-                <ul class="errors">{% for error in form.wind_direction.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <div class="form-row">
+          <label for="wind_direction">{{ form.wind_direction.label }}</label>
+          {{ form.wind_direction(id="wind_direction", placeholder="e.g., NW") }}
+        </div>
 
-            <!-- 💨 Wind Speed -->
-            <label for="wind_speed">Wind Speed (mph):</label>
-            {{ form.wind_speed() }}
-            {% if form.wind_speed.errors %}
-              <ul class="errors">{% for error in form.wind_speed.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <div class="form-row">
+          <label for="humidity">{{ form.humidity.label }}</label>
+          {{ form.humidity(id="humidity") }}
+        </div>
 
-            <!-- 💧 Humidity -->
-            <label for="humidity">Humidity (%):</label>
-            {{ form.humidity() }}
-            {% if form.humidity.errors %}
-                <ul class="errors">{% for error in form.humidity.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <div class="form-row">
+          <label for="temperature">{{ form.temperature.label }}</label>
+          {{ form.temperature(id="temperature", placeholder="e.g., 45°F") }}
+        </div>
 
-            <!-- 🌡️ Temperature -->
-            <label for="temperature">Temperature (°F):</label>
-            <input type="text" name="{{ form.temperature.name }}" id="temperature" list="temperature_options" value="{{ form.temperature.data or '' }}">
-            <datalist id="temperature_options">
-                {% for t in range(-20, 121, 5) %}
-                    <option value="{{ t }}°F">
-                {% endfor %}
-            </datalist>
-            {% if form.temperature.errors %}
-                <ul class="errors">{% for error in form.temperature.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <!-- Location text -->
+        <div class="form-row">
+          <label for="location">{{ form.location.label }}</label>
+          {{ form.location(id="location", placeholder="Optional description (e.g., 'north meadow')") }}
+        </div>
 
-            <!-- Location -->
-            <label for="location">Location:</label>
-            {{ form.location(id="autocomplete") }}
-            <button type="button" onclick="getCurrentLocation()">📍 Use My Location</button>
-            <button type="button" onclick="enablePinDrop()">📌 Select on Map</button><br>
-            {{ form.lat(id="lat") }}
-            {{ form.lng(id="lng") }}
-            {% if form.location.errors %}
-                <ul class="errors">{% for error in form.location.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <!-- Notes -->
+        <div class="form-row">
+          <label for="notes">{{ form.notes.label }}</label>
+          {{ form.notes(id="notes", rows="3", placeholder="Anything notable?") }}
+        </div>
 
-            <!-- Notes -->
-            <label for="notes">Notes:</label>
-            {{ form.notes(id="notes") }}
-            {% if form.notes.errors %}
-                <ul class="errors">{% for error in form.notes.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <!-- Marker color -->
+        <div class="form-row">
+          <label for="marker_color">{{ form.marker_color.label }}</label>
+          {{ form.marker_color(id="marker_color") }}
+        </div>
 
-            <!-- Pin Color -->
-            <label for="marker_color">Pin Color:</label>
-            {{ form.marker_color(id="marker_color") }}
-            {% if form.marker_color.errors %}
-                <ul class="errors">{% for error in form.marker_color.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <!-- Hidden lat/lng that the map updates -->
+        {{ form.lat(id="lat") }}
+        {{ form.lng(id="lng") }}
 
-            <!-- Photo Upload -->
-            <label for="photo">Upload Photo:</label>
-            {{ form.photo(id="photo") }}
-            {% if form.photo.errors %}
-                <ul class="errors">{% for error in form.photo.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-            {% endif %}
-            <br><br>
+        <!-- Photo upload + preview -->
+        <div class="form-row">
+          <label for="photo">{{ form.photo.label }}</label>
+          {{ form.photo(id="photo", accept=".jpg,.jpeg,.png,.gif") }}
+          <div id="photoPreviewWrap" style="margin-top:8px;">
+            <img id="photoPreview" alt="Photo preview" style="display:none; max-width:200px; border:1px solid #ccc; border-radius:4px;">
+          </div>
+        </div>
 
-            <!-- Submit -->
-            <br><br>
-            <input type="submit" value="Save">
-        </form>
-        <br>
+        <!-- Submit -->
+        <div class="form-row">
+          {{ form.submit(class_="btn") }}
+        </div>
+      </form>
+    </section>
 
-    </div>
+    <!-- ===== Right: sticky map & live coordinates ===== -->
+    <aside class="map-section">
+      <h3>Pick Location on Map</h3>
+      <p class="muted">Click the map to set latitude/longitude. Click again to move the marker.</p>
 
-    <div class="map-section">
-        <div id="map"></div>
-    </div>
-</div>
+      <div id="map"></div>
 
-<script>
-    const map = L.map('map').setView([45.0, -93.0], 6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+      <div class="form-row" style="margin-top:10px;">
+        <small>Lat: <span id="latDisplay">{{ form.lat.data or '' }}</span> |
+        Lng: <span id="lngDisplay">{{ form.lng.data or '' }}</span></small>
+      </div>
+    </aside>
 
-    let marker;
-    let pinDropEnabled = false;
+  </div><!-- /.content-wrapper -->
 
-    map.on('click', function (e) {
-        if (!pinDropEnabled) return;
-        const { lat, lng } = e.latlng;
-        document.getElementById("lat").value = lat;
-        document.getElementById("lng").value = lng;
-        document.getElementById("autocomplete").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-        if (marker) map.removeLayer(marker);
-        marker = L.marker([lat, lng], {
-            icon: L.divIcon({
-                className: 'custom-icon',
-                html: `<div style="background:${document.getElementById("marker_color").value};width:12px;height:12px;border-radius:50%;"></div>`
-            })
-        }).addTo(map);
-    });
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    document.getElementById("marker_color").addEventListener("input", function () {
-        if (marker) {
-            const lat = marker.getLatLng().lat;
-            const lng = marker.getLatLng().lng;
-            map.removeLayer(marker);
-            marker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                    className: 'custom-icon',
-                    html: `<div style="background:${this.value};width:12px;height:12px;border-radius:50%;"></div>`
-                })
-            }).addTo(map);
-        }
-    });
+  <script>
+    // =========================================================
+    // STEP 2: Category → animal linkage
+    // - Populate the "Animal" select based on selected category
+    // =========================================================
+    const ANIMAL_CHOICES = {{ animal_choices|tojson }};
+    const categorySelect = document.getElementById('animal_category');
+    const animalSelect   = document.getElementById('animal');
 
-    function getCurrentLocation() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(function (position) {
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-                document.getElementById("lat").value = lat;
-                document.getElementById("lng").value = lng;
-                document.getElementById("autocomplete").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-                map.setView([lat, lng], 13);
-                if (marker) map.removeLayer(marker);
-                marker = L.marker([lat, lng]).addTo(map);
-            });
-        } else {
-            alert("Geolocation is not supported by this browser.");
-        }
-    }
-
-    function enablePinDrop() {
-        pinDropEnabled = true;
-        alert("Click on the map to place your pin.");
-    }
-
-    // Prevent form submission via Enter key (except in textareas)
-    document.querySelector("form").addEventListener("keydown", function (e) {
-        if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") {
-            e.preventDefault();
-        }
-    });
-</script>
-
-<!-- Dynamically update Animal dropdown when an animal category is selected
-    should go in add.html template -
- -->
-<script>
-    const animalChoices = {{ animal_choices|tojson|safe }};
-
-  document.getElementById('animal_category').addEventListener('change', function () {
-    const selectedCategory = this.value;
-    const animalSelect = document.getElementById('animal');
-
-    // Clear existing options
-    animalSelect.innerHTML = '';
-
-    // Add new options based on selected category
-    if (animalChoices[selectedCategory]) {
-      animalChoices[selectedCategory].forEach(function (animal) {
-        const option = document.createElement('option');
-        option.value = animal;
-        option.text = animal;
-        animalSelect.appendChild(option);
+    function renderAnimalsFor(cat, selectedValue = "") {
+      const animals = ANIMAL_CHOICES[cat] || [];
+      animalSelect.innerHTML = "";
+      const placeholder = new Option("Select an animal", "", true, false);
+      placeholder.disabled = true;
+      animalSelect.add(placeholder);
+      animals.forEach(name => {
+        const opt = new Option(name, name, false, name === selectedValue);
+        animalSelect.add(opt);
       });
-    } else {
-      const option = document.createElement('option');
-      option.value = '';
-      option.text = 'Select an animal category first';
-      animalSelect.appendChild(option);
     }
-  });
-</script>
+
+    categorySelect.addEventListener('change', e => {
+      renderAnimalsFor(e.target.value);
+    });
+
+    // On load: if category already chosen (after validation error), restore animals
+    (function bootstrapAnimalSelect() {
+      const initialCat = categorySelect.value || "";
+      const initialAnimal = {{ (form.animal.data or '')|tojson }};
+      if (initialCat) renderAnimalsFor(initialCat, initialAnimal);
+    })();
+
+    // =========================================================
+    // STEP 3: Leaflet map to set coordinates
+    // - Writes to hidden inputs inside the form
+    // - Map is outside the form (right column), which is fine:
+    //   we update by element IDs.
+    // =========================================================
+    const latInput   = document.getElementById('lat');
+    const lngInput   = document.getElementById('lng');
+    const latDisplay = document.getElementById('latDisplay');
+    const lngDisplay = document.getElementById('lngDisplay');
+
+    const existingLat = parseFloat(latInput.value);
+    const existingLng = parseFloat(lngInput.value);
+    const startLat  = !isNaN(existingLat) ? existingLat : 45.0;
+    const startLng  = !isNaN(existingLng) ? existingLng : -93.0;
+    const startZoom = (!isNaN(existingLat) && !isNaN(existingLng)) ? 10 : 6;
+
+    const map = L.map('map').setView([startLat, startLng], startZoom);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    let marker = null;
+    if (!isNaN(existingLat) && !isNaN(existingLng)) {
+      marker = L.marker([existingLat, existingLng]).addTo(map);
+    }
+
+    function setLatLng(lat, lng) {
+      latInput.value = lat.toFixed(6);
+      lngInput.value = lng.toFixed(6);
+      latDisplay.textContent = latInput.value;
+      lngDisplay.textContent = lngInput.value;
+
+      if (marker) marker.setLatLng([lat, lng]);
+      else marker = L.marker([lat, lng]).addTo(map);
+    }
+
+    map.on('click', (e) => {
+      setLatLng(e.latlng.lat, e.latlng.lng);
+    });
+
+    // =========================================================
+    // STEP 4: Show preview for uploaded photo
+    // =========================================================
+    const photoInput   = document.getElementById('photo');
+    const photoPreview = document.getElementById('photoPreview');
+
+    photoInput.addEventListener('change', () => {
+      const file = photoInput.files && photoInput.files[0];
+      if (!file) {
+        photoPreview.style.display = 'none';
+        photoPreview.src = '';
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      photoPreview.src = url;
+      photoPreview.style.display = 'block';
+    });
+  </script>
 
 </body>
 </html>
