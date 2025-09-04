@@ -1,61 +1,205 @@
+/* ==================================================================== */
+/* GLOBAL: Base layout & elements                                       */
+/* ==================================================================== */
+
 body {
-    font-family: sans-serif;
-    margin: 40px;
+  font-family: sans-serif;
+  margin: 40px;
 }
-table, th, td {
-    border: 1px solid #999;
-    border-collapse: collapse;
-    padding: 8px;
-}
+
 h1 {
-    color: darkgreen;
+  color: darkgreen;
 }
 
-/* Hover effect for sighting and harvesting list images ================= */
+table, th, td {
+  border: 1px solid #999;
+  border-collapse: collapse;
+  padding: 8px;
+}
+
+
+/* ==================================================================== */
+/* GLOBAL: Components (shared across pages)                              */
+/* ==================================================================== */
+
+/* Image hover (sightings + harvests) */
 .photo-thumb {
-    transition: all 0.2s ease-in-out;
-    cursor: pointer;
-    border-radius: 4px;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+  border-radius: 4px;
 }
-
 .photo-thumb:hover {
-    outline: 2px solid #2e7d32;
-    transform: scale(1.05);
+  outline: 2px solid #2e7d32;
+  transform: scale(1.05);
 }
 
-/* Modal Styles =========================================================== */
+/* Modal (used in multiple pages) */
 .modal {
-    display: none;
-    position: fixed;
-    z-index: 999;
-    left: 0; top: 0;
-    width: 100%; height: 100%;
-    overflow: auto;
-    background-color: rgba(0,0,0,0.7);
+  display: none;
+  position: fixed;
+  z-index: 999;
+  left: 0; top: 0;
+  width: 100%; height: 100%;
+  overflow: auto;
+  background-color: rgba(0,0,0,0.7);
 }
-
 .modal-content {
-    background-color: #fefefe;
-    margin: 10 auto;
-    padding: 20px;
-    border-radius: 8px;
-    width: 80%;
-    max-width: 600px;
-    text-align: center;
+  background-color: #fefefe;
+  margin: 10 auto;
+  padding: 20px;
+  border-radius: 8px;
+  width: 80%;
+  max-width: 600px;
+  text-align: center;
 }
-
 .modal img {
-    max-width: 60%;
-    height: auto;
-    margin-bottom: 10px;
-    border-radius: 6px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+  max-width: 60%;
+  height: auto;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+.close {
+  float: right;
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+  cursor: pointer;
 }
 
-.close {
-    float: right;
-    font-size: 24px;
-    font-weight: bold;
-    color: #333;
-    cursor: pointer;
+
+/* ==================================================================== */
+/* GLOBAL: Buttons                                                       */
+/* ==================================================================== */
+
+.btn {
+  padding: 6px 12px;
+  border: 1px solid #888;
+  border-radius: 6px;
+  background: #f5f5f5;
+  cursor: pointer;
+  display: inline-block;
+  text-decoration: none;
+  color: #111;
 }
+.btn:hover { background: #eee; }
+
+/* Size */
+.btn--sm { padding: 4px 10px; font-size: .9rem; }
+
+/* Block (full-width) */
+.btn--block {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Primary (green) */
+.btn--primary {
+  background: #4CAF50;
+  color: #fff;
+  border: 1px solid #4CAF50;
+}
+.btn--primary:hover {
+  background: #388E3C;
+  border-color: #388E3C;
+}
+
+/* Ghost (neutral) */
+.btn--ghost {
+  background: #fff;
+  border: 1px solid #bbb;
+  color: #333;
+}
+.btn--ghost:hover { background: #f5f5f5; }
+
+/* Danger (red outline / light fill) */
+.btn--danger {
+  border: 1px solid #c33;
+  background: #f8d7da;
+  color: #7a1212;
+}
+.btn--danger:hover { background: #f4c6cb; }
+
+/* Accent (green outline) — used for "Add New Sighting" */
+.btn--accent {
+  background: #fff;
+  border: 2px solid #2e7d32;
+  color: #1b5e20;
+  font-weight: 600;
+}
+.btn--accent:hover { background: #e8f5e9; }
+
+
+/* ==================================================================== */
+/* GLOBAL: Map labels & table helpers                                    */
+/* ==================================================================== */
+
+/* Keep action buttons on one line in table cells */
+td.actions { white-space: nowrap; }
+
+/* Map label (sighting name) — shared by index & single view maps */
+.sighting-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #111;
+  font-size: 11px;
+  font-weight: 600;
+  text-shadow: 0 1px 0 rgba(255,255,255,.7);
+  padding: 0 2px;
+  pointer-events: none;
+  opacity: 0;                     /* hidden by default */
+  transition: opacity .12s ease-in-out;
+}
+/* Show labels whenever the map container has .labels-on */
+.labels-on .leaflet-tooltip.sighting-label { opacity: 1; }
+
+
+/* ==================================================================== */
+/* GLOBAL: Utilities                                                     */
+/* ==================================================================== */
+
+.muted { color:#666; font-size:.9em; }
+
+
+/* ==================================================================== */
+/* PAGE: index.html                                                      */
+/* ==================================================================== */
+
+/* Space under page header for actions (e.g., Add New Sighting) */
+.header-actions { margin: 8px 0 14px; }
+
+
+/* ==================================================================== */
+/* PAGE: view_sighting.html                                              */
+/* ==================================================================== */
+
+/* Stacked action buttons (Edit / Delete) next to the details table */
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  width: 180px;
+  gap: 10px;
+  margin-bottom: 16px;   /* space under the buttons before the table/map */
+}
+
+
+/* ==================================================================== */
+/* PAGE: edit_sighting.html                                              */
+/* ==================================================================== */
+
+/* Save / Cancel row under the form */
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px; /* breathing room above table/map */
+}
+
+/* Back links at the top of edit page, stacked */
+.back-links { margin-bottom: 15px; }
+.back-links a { display:block; margin-bottom:8px; }
+
+

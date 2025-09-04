@@ -18,6 +18,29 @@ Step 5: Awesome Markers is optional can remove it if needed
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- Awesome Markers (for map pin) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.css">
+  <!-- Tiny label style for sighting names -->
+  <style>
+    .sighting-label {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      color: #111;
+      font-size: 11px;
+      font-weight: 600;
+      text-shadow: 0 1px 0 rgba(255,255,255,.7);
+      padding: 0 2px;
+      pointer-events: none;
+      opacity: 0; /* hidden by default */
+      transition: opacity .12s ease-in-out;
+    }
+    /* when the map has this class, show labels */
+    .labels-on .leaflet-tooltip.sighting-label {
+      opacity: 1;
+    }
+  </style>
+
 
   <!-- Awesome Markers (if you later use it for icons) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.css">
@@ -30,8 +53,10 @@ Step 5: Awesome Markers is optional can remove it if needed
 <!-- Page Heading -->
 <h1>Sightings Log</h1>
 
-<!-- Link to the add-sighting form -->
-<a href="{{ url_for('add_sighting') }}">Add New Sighting</a>
+<!-- Link to the add-sighting form - Click to Add New Sighting -->
+<div class="header-actions">
+  <a class="btn btn--sm btn--accent" href="{{ url_for('add_sighting') }}"> + Add New Sighting</a>
+</div>
 
 <!-- FLASH MESSAGES (shows success/error toasts) -->
 {% with msgs = get_flashed_messages(with_categories=true) %}
@@ -119,15 +144,20 @@ Step 5: Awesome Markers is optional can remove it if needed
           No Photo
         {% endif %}
       </td>
-      <td>
-        <a href="{{ url_for('view_sighting', id=sighting.id) }}">View</a>
-        <!-- per-row delete form with CSRF token (CSRF protected) -->
-        <form method="POST" action="{{ url_for('delete_sighting', id=sighting.id) }}" style="display:inline;">
-          {{ csrf_token() }}
-          <button type="submit" onclick="return confirm('Delete this sighting?')">Delete</button>
-        </form>
-      </td>
-    </tr>
+      <td class="actions">
+        <a class="btn btn--sm" href="{{ url_for('view_sighting', id=sighting.id) }}">View</a>
+        <form method="POST"
+              action="{{ url_for('delete_sighting', id=sighting.id) }}"
+              style="display:inline; margin-left:6px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn--sm btn--danger"
+                  type="submit"
+                  onclick="return confirm('Delete this sighting?')">
+                  Delete
+                </button>
+              </form>
+            </td>
+          </tr>
   {% endfor %}
   </tbody>
 </table>
@@ -143,34 +173,55 @@ Step 5: Awesome Markers is optional can remove it if needed
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.awesome-markers/2.0.4/leaflet.awesome-markers.js"></script>
 
 <script>
-  // Data from Flask (already stringified safely by Jinja's tojson filter server-side)
-  const sightings = {{ sightings_json|tojson }};
+    // Data from Flask
+    const sightings = {{ sightings_json|tojson }};
 
-  // Initialize map centered on MN area
-  const map = L.map('map').setView([45, -93], 6);
+    // Map setup
+    const map = L.map('map').setView([45, -93], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  // Add OpenStreetMap tiles to the map
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const LABEL_ZOOM = 13; // show labels at this zoom and above
 
-  // Add markers
-  // Render circle markers for each sighting
-  sightings.forEach(s => {
-    const lat = parseFloat(s.lat);
-    const lng = parseFloat(s.lng);
-    const markerColor = s.marker_color || '#2e7d32';
+    sightings.forEach(s => {
+      const lat = parseFloat(s.lat);
+      const lng = parseFloat(s.lng);
+      if (isNaN(lat) || isNaN(lng)) return;
 
-    if (!isNaN(lat) && !isNaN(lng)) {
-      L.circleMarker([lat, lng], {
+      const markerColor = s.marker_color || '#2e7d32';
+      const label = s.sighting_name || ''; // <<-- uses your sighting name
+      const popupHtml = `
+        <strong>${s.animal ?? ''}</strong><br>
+        ${s.date_time ?? ''}${label ? `<br><em>${label}</em>` : ''}
+        `;
+
+      const m = L.circleMarker([lat, lng], {
         radius: 10,
         fillColor: markerColor,
         color: markerColor,
         weight: 1,
         opacity: 1,
         fillOpacity: 0.8
-      }).addTo(map)
-        .bindPopup(`<strong>${s.animal ?? ''}</strong><br>${s.date_time ?? ''}`);
+      }).addTo(map).bindPopup(popupHtml);
+
+      // Bind a tooltip (small caption). We'll open/close it based on zoom.
+      if (label) {
+        m.bindTooltip(label, {
+          permanent: true,
+          direction: 'right',
+          offset: [10, 0],
+          className: 'sighting-label',
+        });
+      }
+    });
+
+    // Toggle a class on the map container instead of opening/closing tooltips
+    function updateLabelVisibility() {
+      const show= map.getZoom() >= LABEL_ZOOM;
+      map.getContainer().classList.toggle('labels-on', show);
     }
-  });
+
+    updateLabelVisibility();
+    map.on('zoomend', updateLabelVisibility);
 </script>
 
 <!-- PHOTO MODAL (click thumbnail -> show full image + details)  -->

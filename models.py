@@ -53,6 +53,9 @@ class Sighting(db.Model):
     # FK -> Animal; indexed to speed up joins/filters in lists
     animal_id = db.Column(db.Integer, db.ForeignKey('animal.id'), nullable=False, index=True)  # <<< indexed
 
+    # Sighting name/title stored in database
+    sighting_name = db.Column(db.String(120), nullable=True, index=True)
+
     # When the sighting occurred; also indexed for fast sort/filter by date
     date_time = db.Column(db.DateTime, nullable=True, index=True)  # <<< indexed
 
@@ -81,6 +84,7 @@ class Sighting(db.Model):
         return {
             "id": self.id,
             "animal": self.animal.name if self.animal else None,
+            "sighting_name": self.sighting_name,
             "date_time": self.date_time,
             "weather": self.weather,
             "wind": self.wind,

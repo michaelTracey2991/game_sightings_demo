@@ -36,35 +36,31 @@ and photo/map if available
       font-weight: bold;
       cursor: pointer;
     }
-
-    .btn {
-      width: 100%;
-      padding: 10px 20px;
-      background-color: #4CAF50;
-      color: white;
+    /* Small always-visible label next to the marker on map */
+    .sighting-label {
+      background: transparent;
       border: none;
-      text-align: center;
-      font-size: 16px;
-      border-radius: 5px;
-      cursor: pointer;
-      text-decoration: none;
-    }
-    .btn:hover {
-      background-color: #388E3C;
-    }
+      box-shadow: none;
+      color: #111;
+      font-size: 11px;
+      font-weight: 600;
+      text-shadow: 0 1px 0 rgba(255,255,255,.7);
+      padding: 0 2px;
+      pointer-events: none;
+     }
 
     .action-buttons {
       display: flex;
       flex-direction: column;
       width: 160px;
       gap: 10px;
-    }
-    .action-buttons button,
-    .action-buttons form button {
-      padding: 10px;
-      font-size: 1em;
-      width: 100%;
-    }
+     }
+     .action-buttons .btn {
+      display:block;
+      width:100%;
+      padding:10px;
+      text-align:center;
+     }
 
     .flex-view {
       display: flex;
@@ -84,34 +80,46 @@ and photo/map if available
   </style>
 </head>
 <body>
-<p><a href="{{ url_for('sightings_page') }}">← Back to All Sightings</a></p>
-  <h1>{{ sighting.animal }} Sighting Details</h1>
+<p><a href="{{ url_for('view_sightings') }}">← Back to All Sightings</a></p>
+  <h1>{{ sighting.animal.name if sighting.animal else 'Sighting' }} Sighting Details</h1>
 
-  <div style="margin-bottom: 1em;">
-    <div class="action-buttons">
-      <form action="{{ url_for('edit_sighting', sighting_id=sighting.id) }}">
-        <button type="submit">Edit</button>
-      </form>
-      <button type="button" onclick="openDeleteModal('{{ url_for('delete_sighting', sighting_id=sighting.id) }}')">Delete</button>
-    </div>
-
+  <div class="action-buttons">
+    <a class="btn btn--primary btn--block" href="{{ url_for('edit_sighting', id=sighting.id) }}">Edit</a>
+    <button class="btn btn--danger btn--block"
+            type="button"
+            onclick="openDeleteModal('{{ url_for('delete_sighting', id=sighting.id) }}')">
+      Delete
+    </button>
   </div>
 
   <div class="flex-view">
     <table border="1" class="details-table">
-      <tr><th>Animal</th><td>{{ sighting.animal }}</td></tr>
-      <tr><th>Date/Time</th><td>{{ sighting.date_time }}</td></tr>
+      <tr><th>Animal</th><td>{{ sighting.animal.name if sighting.animal else '' }}</td></tr>
+      <tr><th>Date/Time</th><td>{{ sighting.date_time.strftime('%Y-%m-%d %H:%M') if sighting.date_time else '' }}</td></tr>
       <tr><th>Weather</th><td>{{ sighting.weather }}</td></tr>
       <tr><th>Wind</th><td>{{ sighting.wind }}</td></tr>
       <tr><th>Wind Speed</th><td>{{ sighting.wind_speed }}</td></tr>
       <tr><th>Wind Direction</th><td>{{ sighting.wind_direction }}</td></tr>
       <tr><th>Humidity</th><td>{{ sighting.humidity }}</td></tr>
       <tr><th>Temperature</th><td>{{ sighting.temperature }}</td></tr>
-      <tr><th>Location</th><td>{{ sighting.location }}</td></tr>
-      <tr><th>Notes</th><td>{{ sighting.notes }}</td></tr>
-      <tr><th>Marker Color</th>
-        <td><div style="width: 20px; height: 20px; background-color: {{ sighting.marker_color }};"></div></td>
+      <tr>
+        <th>Location</th>
+        <td>
+          {% if sighting.location %}{{ sighting.location }}<br>{% endif %}
+          {% if sighting.lat is not none and sighting.lng is not none %}
+            <code>{{ '%.6f'|format(sighting.lat) }}, {{ '%.6f'|format(sighting.lng) }}</code>
+          {% else %}
+              <em>No coordinates</em>
+          {% endif %}
+        </td>
       </tr>
+      <tr><th>Notes</th><td>{{ sighting.notes }}</td></tr>
+      <tr>
+      <th>Marker Color</th>
+      <td>
+        <div style="width:20px;height:20px;background-color: {{ sighting.marker_color or '#3388ff' }};"></div>
+      </td>
+    </tr>
       <tr><th>Photo</th>
         <td>
           {% if sighting.photo_filename %}
@@ -130,29 +138,47 @@ and photo/map if available
   </div>
 
   <!-- Map Script -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      const lat = parseFloat({{ sighting.lat or 'NaN' }});
-      const lng = parseFloat({{ sighting.lng or 'NaN' }});
-      if (!isNaN(lat) && !isNaN(lng)) {
-        const map = L.map('sightingMap').setView([lat, lng], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const lat = parseFloat({{ sighting.lat or 'NaN' }});
+    const lng = parseFloat({{ sighting.lng or 'NaN' }});
 
-        const markerColor = "{{ sighting.marker_color or '#2e7d32' }}";
+    if (!isNaN(lat) && !isNaN(lng)) {
+      const map = L.map('sightingMap').setView([lat, lng], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        L.circleMarker([lat, lng], {
-          radius: 10,
-          fillColor: markerColor,
-          color: markerColor,
-          weight: 1,
-          fillOpacity: 0.9
-        }).addTo(map).bindPopup("{{ sighting.animal }}");
-      } else {
-        document.getElementById('sightingMap').innerHTML = "<p>No coordinates available for this sighting.</p>";
+      // Make sighting-name labels always visible on this page
+      map.getContainer().classList.add('labels-on');
+
+      const markerColor = {{ (sighting.marker_color or '#2e7d32')|tojson }};
+      const popupText   = {{ (sighting.animal.name if sighting.animal else '')|tojson }};
+      const label       = {{ (sighting.sighting_name or '')|tojson }};
+
+      const marker = L.circleMarker([lat, lng], {
+        radius: 10,
+        fillColor: markerColor,
+        color: markerColor,
+        weight: 1,
+        fillOpacity: 0.9
+      }).addTo(map).bindPopup(popupText);
+
+      if (label) {
+        marker.bindTooltip(label, {
+          permanent: true,
+          direction: 'right',
+          offset: [10, 0],
+          className: 'sighting-label'
+        });
       }
-    });
-  </script>
+    } else {
+      document.getElementById('sightingMap').innerHTML =
+        "<p>No coordinates available for this sighting.</p>";
+    }
+  });
+</script>
+
+
 
   <!-- Delete Modal -->
   <div id="deleteModal" class="modal">
@@ -160,6 +186,7 @@ and photo/map if available
       <span class="close" onclick="closeDeleteModal()">&times;</span>
       <h3>Are you sure you want to delete this sighting?</h3>
       <form id="deleteForm" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit">Yes, Delete</button>
         <button type="button" onclick="closeDeleteModal()">Cancel</button>
       </form>
@@ -198,6 +225,7 @@ and photo/map if available
       }
     };
   </script>
+
 </body>
 </html>
 

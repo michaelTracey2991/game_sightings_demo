@@ -82,6 +82,10 @@ FLAT_ANIMALS = [(name, name) for group in ANIMAL_CHOICES.values() for name in gr
 
 
 class SightingForm(FlaskForm):
+
+    # Give each sighting a custom name/title
+    sighting_name = StringField('Sighting Name', validators=[Optional(), Length(max=120)])
+
     # Add a category field
     animal_category = SelectField(
         'Animal Category',

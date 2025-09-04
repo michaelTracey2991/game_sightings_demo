@@ -9,20 +9,37 @@ import os
 
 app = Flask(__name__)
 
-# Secret key for session management - ENVIRONMENT VARIABLES
+# -------------------
+# CORE CONFIG
+# -------------------
+
+# Secret key for session management (env override -> fallback)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev-fallback-key'
 
-# Upload folder for user-uploaded images
+# Upload folder and size cap
 UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
 
-# Database config - ENVIRONMENT VARIABLES
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///wildlife.db')
+# ---------------------------------------
+# Database config (env or local sqlite)
+# ---------------------------------------
+database_url = os.getenv('DATABASE_URL')
+if not database_url:
+    # Build an absolute sqlite path and normalize slashes for SQLAlchemy
+    db_path = os.path.join(app.root_path, "wildlife.db")
+    db_path = db_path.replace('\\', '/')  # important on Windows
+    database_url = f"sqlite:///{db_path}"
 
-# Initialize extension
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+print("Using DB:", app.config['SQLALCHEMY_DATABASE_URI'])
+
+# Initialize extensions AFTER all config is set
 db.init_app(app)
-csrf = CSRFProtect(app) # CSRF protection
+csrf = CSRFProtect(app)
 
 # =========================================
 # HELPER FUNCTIONS
@@ -106,6 +123,7 @@ def view_sightings():
         {
             'id': s.id,
             'marker_color': s.marker_color,
+            'sighting_name': s.sighting_name,
             'animal': s.animal.name if s.animal else None,
             'location': s.location,
             'date_time': s.date_time.strftime('%Y-%m-%d %H:%M') if s.date_time else '',  # <<< CHANGED: guard None
@@ -156,6 +174,7 @@ def add_sighting():
         # Create new sighting using all form fields
         new_sighting = Sighting(
             animal=animal_obj,  # relationship sets animal_id
+            sighting_name=form.sighting_name.data,
             location=form.location.data,
             date_time=form.date_time.data,
             notes=form.notes.data,
@@ -214,9 +233,11 @@ def edit_sighting(id):
         animal_obj = Animal.query.filter_by(name=form.animal.data).first()
         if not animal_obj:
             flash("Animal not found in database.", "error")
-            return render_template('edit_sighting.html', form=form, sighting=sighting)
+            return render_template('edit_sighting.html', form=form, sighting=sighting, animal_choices=ANIMAL_CHOICES)
 
+        # Fields available for editing when editing a sighting
         sighting.animal = animal_obj
+        sighting.sighting_name = form.sighting_name.data
         sighting.location = form.location.data
         sighting.date_time = form.date_time.data
         sighting.notes = form.notes.data
@@ -239,7 +260,7 @@ def edit_sighting(id):
         flash('Sighting updated!')
         return redirect(url_for('view_sighting', id=id))
 
-    return render_template('edit_sighting.html', form=form, sighting=sighting)
+    return render_template('edit_sighting.html', form=form, sighting=sighting, animal_choices=ANIMAL_CHOICES)
 
 
 # DELETE SIGHTING ===============================================
@@ -410,13 +431,19 @@ def delete_harvest(id):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        # seed animals once on a fresh DB
-        from models import Animal
-        from forms import ANIMAL_CHOICES
-        # -------- optional DEV SEED (delete wildlife.db once, run, then you can remove) --------
-        if not Animal.query.first():  # <<< CHANGED: seed animals so selects work immediately
-            for category, names in ANIMAL_CHOICES.items():
-                for name in names:
-                    db.session.add(Animal(name=name, animal_class=category))
+
+        # Optional DEV SEED:
+        # Insert animals if the table is empty (or insert any missing ones).
+        # Remove this block in production or guard with an env flag.
+        existing = {a.name for a in Animal.query.with_entities(Animal.name).all()}
+        to_insert = []
+        for category, names in ANIMAL_CHOICES.items():
+            for name in names:
+                if name not in existing:
+                    to_insert.append(Animal(name=name, animal_class=category))
+        if to_insert:
+            db.session.add_all(to_insert)
             db.session.commit()
+            print(f"Seeded {len(to_insert)} animals.")
+
     app.run(debug=True)

@@ -1,173 +1,237 @@
 <!--
 view_harvest.html
-Displays a single harvest in detail, with edit/delete buttons,
-photo zoom, and a mini map
+- Purpose: Show a single harvest with all details, quick actions (edit/delete),
+            a photo zoom modal, and a small leaflet map with Shot/Recovery pins
+
+ Notes:
+ - Uses global button + layout classes from static/style.css  <!-- FIX: comment path -->
+ - Inline styles here are only for page-specific layout
 -->
 <!DOCTYPE html>
 <html>
 <head>
-    <title>View Harvest</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 9999;
-            left: 0; top: 0;
-            width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.6);
-        }
-        .modal-content {
-            margin: 10% auto;
-            background-color: #fff;
-            padding: 20px;
-            max-width: 500px;
-            border-radius: 5px;
-        }
-        .modal-content img {
-            width: 100%;
-            height: auto;
-        }
-        .close {
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
+  <title>View Harvest</title>
 
-        /* Buttons and layout */
-        .btn {
-            width: 100%;
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            text-align: center;
-            font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            text-decoration: none;
-        }
-        .btn:hover {
-            background-color: #388E3C;
-        }
+  <!-- Global site styles and Leaflet CSS -->
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-        .action-buttons {
-            display: flex;
-            flex-direction: column;
-            width: 160px;
-            gap: 10px;
-        }
-        .action-buttons button,
-        .action-buttons form button {
-            padding: 10px;
-            font-size: 1em;
-            width: 100%;
-        }
+  <!-- Page-specific styles  -->
+  <style>
+    /* Modal base styles (photo + delete dialogs) */  /* FIX: closed parenthesis in comment */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      left: 0; top: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.6);
+    }
+    .modal-content {
+      margin: 10% auto;
+      background-color: #fff;
+      padding: 20px;
+      max-width: 500px;
+      border-radius: 5px;
+    }
+    .modal-content img { width: 100%; height: auto; }
+    .close { float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
 
-        .flex-view {
-            display: flex;
-            gap: 30px;
-            align-items: flex-start;
-        }
+    /* Button column for Edit/Delete (uses global styles) */
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      width: 180px;
+      gap: 10px;
+      margin-bottom: 16px; /* FIX: pxl -> px */
+    }
 
-        table.details-table {
-            flex: 1;
-            width: 60%;
-        }
-
-        #harvestMap {
-            flex: 1;
-            height: 400px;
-        }
-    </style>
+    /* Two-column layout: details table + map */
+    .flex-view { display: flex; gap: 30px; align-items: flex-start; }
+    table.details-table { flex: 1; width: 60%; }
+    #harvestMap { flex: 1; height: 400px; }
+  </style>
 </head>
 <body>
-<p><a href="{{ url_for('view_harvests') }}">← Back to All Sightings</a></p>
-    <h1>{{ harvest.animal }} Harvest Details</h1>
 
-    <div style="margin-bottom: 1em;">
-        <div class="action-buttons">
-            <form action="{{ url_for('edit_harvest', harvest_id=harvest.id) }}">
-                <button type="submit">Edit</button>
-            </form>
-            <button type="button" onclick="openDeleteModal('{{ url_for('delete_harvest', harvest_id=harvest.id) }}')">Delete</button>
-        </div>
+  <!-- Back link (consistent with other pages) -->
+  <p><a href="{{ url_for('view_all_harvests') }}">← Back to All Harvests</a></p>
 
+  <!-- Title uses the animal name if present -->
+  <h1>{{ harvest.animal }} Harvest Details</h1>
+
+  <!-- Actions: Edit / Delete (full-width buttons using .btn--block) -->
+  <div class="action-buttons">
+    <a class="btn btn--primary btn--block" href="{{ url_for('edit_harvest', harvest_id=harvest.id) }}">Edit</a>
+    <button class="btn btn--danger btn--block" type="button"
+            onclick="openDeleteModal('{{ url_for('delete_harvest', harvest_id=harvest.id) }}')">
+      Delete
+    </button>
+  </div>
+
+  <!-- Main content: left = details table; right = mini map -->
+  <div class="flex-view">
+    <table border="1" class="details-table">
+      <tr><th>Harvest Name</th><td>{{ harvest.harvest_name or '' }}</td></tr>
+      <tr><th>Animal</th><td>{{ harvest.animal or '' }}</td></tr>
+      <tr>
+        <th>Date/Time</th>
+        <td>
+          {% if harvest.date_time %}
+            {{ harvest.date_time.strftime('%Y-%m-%d %H:%M') if harvest.date_time.strftime else harvest.date_time }}
+          {% endif %}
+        </td>
+      </tr>
+      <tr><th>Weapon</th><td>{{ harvest.weapon_type or '-' }}</td></tr>
+      <tr><th>Caliber</th><td>{{ harvest.caliber or '-' }}</td></tr>
+      <tr><th>Broadhead</th><td>{{ harvest.broadhead or '-' }}</td></tr>
+      <tr><th>Weather</th><td>{{ harvest.weather or '-' }}</td></tr>
+      <tr><th>Wind Speed</th><td>{{ harvest.wind_speed or '-' }}</td></tr>
+      <tr><th>Wind Direction</th><td>{{ harvest.wind_direction or '-' }}</td></tr>
+      <tr><th>Humidity</th><td>{{ harvest.humidity or '-' }}</td></tr>
+      <tr><th>Distance Traveled</th><td>{{ harvest.distance_traveled }}{% if harvest.distance_traveled %} yd{% endif %}</td></tr>
+
+      <!-- Coordinates are printed with consistent precision -->
+      <tr>
+        <th>Shot Coordinates</th>
+        <td>
+          {% if harvest.shot_lat is not none and harvest.shot_lng is not none %}
+            <code>{{ '%.6f'|format(harvest.shot_lat) }}, {{ '%.6f'|format(harvest.shot_lng) }}</code>
+          {% else %}<em>—</em>{% endif %}
+        </td>
+      </tr>
+      <tr>
+        <th>Recovery Coordinates</th>
+        <td>
+          {% if harvest.recovery_lat is not none and harvest.recovery_lng is not none %}
+            <code>{{ '%.6f'|format(harvest.recovery_lat) }}, {{ '%.6f'|format(harvest.recovery_lng) }}</code>
+          {% else %}<em>—</em>{% endif %}
+        </td>
+      </tr>
+
+      <tr><th>Notes</th><td>{{ harvest.notes or '' }}</td></tr>
+      <tr>
+        <th>Marker Color</th>
+        <td><div style="width:20px;height:20px;background-color: {{ harvest.marker_color or '#3388ff' }}; border:1px solid #333;"></div></td>
+      </tr>
+
+      <!-- Photo with click-to-zoom via modal -->
+      <tr>
+        <th>Photo</th>
+        <td>
+          {% if harvest.photo_filename %}
+            <img class="photo-thumb" width="200"
+                 src="{{ url_for('static', filename='uploads/' ~ harvest.photo_filename) }}"
+                 alt="Harvest photo"
+                 onclick="openPhotoModal({{ url_for('static', filename='uploads/' ~ harvest.photo_filename)|tojson }})">
+          {% else %}No Photo{% endif %}
+        </td>
+      </tr>
+    </table>
+
+    <!-- Leaflet map container -->
+    <div id="harvestMap"></div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- Map Logic: plots Shot/Recovery pins and draws a line + fits bounds -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // Basic map setup
+      const map = L.map('harvestMap').setView([45, -93], 6);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+      // Color from DB - falls back to blue
+      const color = {{ (harvest.marker_color or '#3388ff')|tojson }};  /* FIX: parentheses */
+
+      // Pulls coordinates from server; if absent, inject NaN so can test easily in JS
+      const shotLat = parseFloat({{ harvest.shot_lat if harvest.shot_lat is not none else 'NaN' }});
+      const shotLng = parseFloat({{ harvest.shot_lng if harvest.shot_lng is not none else 'NaN' }});
+      const recLat  = parseFloat({{ harvest.recovery_lat if harvest.recovery_lat is not none else 'NaN' }}); /* FIX */
+      const recLng  = parseFloat({{ harvest.recovery_lng if harvest.recovery_lng is not none else 'NaN' }});
+
+      const bounds = [];
+      let shotMarker = null, recMarker = null;
+
+      // Add shot marker
+      if (!Number.isNaN(shotLat) && !Number.isNaN(shotLng)) {
+        shotMarker = L.circleMarker([shotLat, shotLng], {
+          radius: 10, fillColor: color, color: color, weight: 1, fillOpacity: 0.9
+        }).addTo(map).bindPopup("Shot");
+        bounds.push([shotLat, shotLng]);
+      }
+
+      // Add recovery marker
+      if (!Number.isNaN(recLat) && !Number.isNaN(recLng)) {
+        recMarker = L.circleMarker([recLat, recLng], {
+          radius: 10, fillColor: color, color: color, weight: 1, fillOpacity: 0.5
+        }).addTo(map).bindPopup("Recovery");
+        bounds.push([recLat, recLng]);
+      }
+
+      // Draw a line between shot and recovery if both exist
+      if (shotMarker && recMarker) {
+        L.polyline([[shotLat, shotLng], [recLat, recLng]], { weight: 3, opacity: .6 }).addTo(map);
+      }
+
+      // Fit map to the points; otherwise show a message
+      if (bounds.length) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+      } else {
+        document.getElementById('harvestMap').innerHTML = "<p>No coordinates available for this harvest.</p>";
+      }
+    });
+
+    // Delete modal open/close helpers
+    function openDeleteModal(actionUrl) {
+      document.getElementById('deleteForm').action = actionUrl;
+      document.getElementById('deleteModal').style.display = 'block';
+    }
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').style.display = 'none';
+    }
+
+    // Photo modal open/close helpers
+    function openPhotoModal(url) {
+      document.getElementById('modalImage').src = url;
+      document.getElementById('photoModal').style.display = 'block'; /* FIX: show, not hide */
+    }
+    function closePhotoModal(){
+      document.getElementById('photoModal').style.display = 'none';
+    }
+
+    // Close modals when clicking outside
+    window.onclick = function(event) {
+      if (event.target.classList.contains('modal')) {
+        closeDeleteModal();
+        closePhotoModal();
+      }
+    };
+  </script>
+
+  <!-- Delete Modal -->
+  <div id="deleteModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeDeleteModal()">&times;</span>
+      <h3>Are you sure you want to delete this harvest?</h3>
+      <form id="deleteForm" method="POST">
+        <!-- If using CSRF in app, keep this hidden input -->
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn--danger" type="submit">Yes, Delete</button>
+        <button class="btn" type="button" onclick="closeDeleteModal()">Cancel</button>
+      </form>
     </div>
+  </div>
 
-    <div class="flex-view">
-        <table border="1" class="details-table">
-            <tr><th>Animal</th><td>{{ harvest.animal }}</td></tr>
-            <tr><th>Date/Time</th><td>{{ harvest.date_time }}</td></tr>
-            <tr><th>Weapon</th><td>{{ harvest.weapon }}</td></tr>
-            <tr><th>Caliber</th><td>{{ harvest.caliber or '-' }}</td></tr>
-            <tr><th>Broadhead</th><td>{{ harvest.broadhead or '-' }}</td></tr>
-            <tr><th>Weather</th><td>{{ harvest.weather or '-' }}</td></tr>
-            <tr><th>Wind Speed</th><td>{{ harvest.wind_speed or '-' }}</td></tr>
-            <tr><th>Wind Direction</th><td>{{ harvest.wind_direction or '-' }}</td></tr>
-            <tr><th>Humidity</th><td>{{ harvest.humidity or '-' }}</td></tr>
-            <tr><th>Distance Traveled</th><td>{{ harvest.distance_traveled or '-' }}</td></tr>
-            <tr><th>Notes</th><td>{{ harvest.notes }}</td></tr>
-            <tr><th>Location</th><td>{{ harvest.location }}</td></tr>
-            <tr><th>Marker Color</th><td><div style="width: 20px; height: 20px; background-color: {{ harvest.marker_color }};"></div></td></tr>
-        </table>
-
-        <div id="harvestMap"></div>
+  <!-- Photo Zoom Modal -->
+  <div id="photoModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closePhotoModal()">&times;</span>
+      <img id="modalImage" src="" alt="Full Harvest Image">
     </div>
+  </div>
 
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const lat = parseFloat({{ harvest.lat or 'NaN' }});
-            const lng = parseFloat({{ harvest.lng or 'NaN' }});
-
-            if (!isNaN(lat) && !isNaN(lng)) {
-                const map = L.map('harvestMap').setView([lat, lng], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-                const markerColor = "{{ harvest.marker_color or '#2e7d32' }}";
-
-                L.circleMarker([lat, lng], {
-                    radius: 10,
-                    fillColor: markerColor,
-                    color: markerColor,
-                    weight: 1,
-                    fillOpacity: 0.9
-                }).addTo(map).bindPopup("{{ harvest.animal }}");
-            } else {
-                document.getElementById('harvestMap').innerHTML = "<p>No coordinates available for this harvest.</p>";
-            }
-        });
-    </script>
-
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeDeleteModal()">&times;</span>
-            <h3>Are you sure you want to delete this harvest?</h3>
-            <form id="deleteForm" method="POST">
-                <button type="submit">Yes, Delete</button>
-                <button type="button" onclick="closeDeleteModal()">Cancel</button>
-            </form>
-        </div>
-    </div>
-
-    <script>
-        function openDeleteModal(actionUrl) {
-            document.getElementById('deleteForm').action = actionUrl;
-            document.getElementById('deleteModal').style.display = 'block';
-        }
-        function closeDeleteModal() {
-            document.getElementById('deleteModal').style.display = 'none';
-        }
-
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) {
-                closeDeleteModal();
-            }
-        }
-    </script>
 </body>
 </html>

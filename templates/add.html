@@ -1,91 +1,144 @@
 <!--
 add.html (Add new sighting)
-Template for the "Add New Sighting" page.
-Provides a user-friendly form interface to input details about wildlife sightings,
-including animal type, weather conditions, location selection via map interaction,
-and optional photo upload.
-Uses Flask-WTF form rendering along with JavaScript powered map integration for pin placement.
+Purpose: Friendly form + map picker to log a wildlife sighting.
+NOTES:
+- CHANGED: Added "Sighting Name" field above Animal.
+- CHANGED: Compact field widths on the left.
+- CHANGED: Draggable colored dot marker; color follows Marker Color input.
+- CHANGED: Map action buttons (Choose / Locate / Clear) above the map, then "Location" text box, then the map.
+- CHANGED: Submit button shorter.
+- CHANGED: Datalists for weather/wind/direction/temp.
 -->
 
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Add Sighting • Game Tracker</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <title>Add Sighting • Game Tracker</title>
+  <link rel="stylesheet" href="/static/style.css">
 
-    <!-- Leaflet CSS for the map -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet CSS (map visuals) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-    <style>
-        .content-wrapper {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            padding: 40px;
-            gap: 40px;
-        }
-        .form-section {
-            flex: 2;
-            min-width: 300px;
-            max-width: 600px;
-        }
-        .map-section {
-            flex: 1;
-            position: sticky;
-            top: 120px;
-            align-self: flex-start;
-        }
-        #map {
-            width: 100%;
-            height: 400px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            margin-top: 20px;
-        }
-        .errors {
-            color: red;
-            font-size: 0.9em;
-            list-style: none;
-            padding: 0;
-            margin: 0 0 10px;
-        }
-        .muted { color: #666; font-size: 0.9em; }
-        .form-row { margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
-        .btn { padding: 8px 14px; border: 1px solid #888; border-radius: 6px; background: #f5f5f5; cursor: pointer; }
-        .btn:hover { background: #eee; }
+  <style>
+    /* ============== CHANGED: small label shown next to map pin ============== */
+    .sighting-label {
+      font-size: 11px;
+      color: #333;
+      background: rgba(255,255,255,0.85);
+      border: 1px solid #ddd;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
 
-        @media (max-width: 900px) {
-         .content-wrapper { flex-direction: column; }
-        .map-section { position: static; top: auto; }
-    </style>
+    /* ============== CHANGED: draggable color-dot marker ============== */
+    .pin-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+      display: block;
+    }
+
+    /* ============== CHANGED: compact fields on the left column ============== */
+    :root { --field-max: 360px; }
+
+    .form-section .form-row input:not([type="hidden"]),
+    .form-section .form-row select,
+    .form-section .form-row textarea {
+      max-width: var(--field-max);
+      width: 100%;
+    }
+
+    .form-section .form-row input[type="color"] {
+      width: 56px;
+      height: 36px;
+      padding: 0;
+      border: none;
+      background: none;
+    }
+
+    .form-section .form-row input[type="file"] {
+      max-width: var(--field-max);
+    }
+
+    /* Shorter submit button */
+    .btn { padding: 8px 14px; border: 1px solid #888; border-radius: 6px; background: #f5f5f5; cursor: pointer; }
+    .btn:hover { background: #eee; }
+    .btn-small { padding: 6px 10px; } /* CHANGED: smaller button */
+    .map-actions .btn { padding: 6px 10px; }
+
+    .content-wrapper {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 40px;
+      gap: 40px;
+    }
+    .form-section { flex: 2; min-width: 300px; max-width: 600px; }
+    .map-section  { flex: 1; position: sticky; top: 120px; align-self: flex-start; }
+
+    #map {
+      width: 100%;
+      height: 400px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+
+    .errors { color: red; font-size: 0.9em; list-style: none; padding: 0; margin: 0 0 10px; }
+    .muted  { color: #666; font-size: 0.9em; }
+    .form-row { margin: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+
+    @media (max-width: 900px) {
+      .content-wrapper { flex-direction: column; }
+      .map-section { position: static; top: auto; }
+      .form-section .form-row input:not([type="hidden"]),
+      .form-section .form-row select,
+      .form-section .form-row textarea,
+      .form-section .form-row input[type="file"] {
+        max-width: 100%;
+      }
+    }
+  </style>
 </head>
 <body>
 
-    <!-- Back nav -->
-    <p><a href="{{ url_for('view_sightings') }}">← Back to Sightings</a></p>
+  <!-- Back nav -->
+  <p><a href="{{ url_for('view_sightings') }}">← Back to Sightings</a></p>
 
-    <!-- Title -->
-    <h1 style="text-align: center; padding-top: 40px;">Add New Sighting</h1>
+  <!-- Title -->
+  <h1 style="text-align:center; padding-top:40px;">Add New Sighting</h1>
 
-    <!-- STEP 0: Flash Messages (show server-side notices) -->
-    {% with msgs = get_flashed_messages(with_categories=true) %}
-        {% if msgs %}
-            <ul class="flashes">
-                {% for category, msg in msgs %}
-                    <li class="flash {{ category }}">{{ msg }}</li>
-                {% endfor %}
-            </ul>
-        {% endif %}
-    {% endwith %}
+  <!-- Flash Messages -->
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% if msgs %}
+      <ul class="flashes">
+        {% for category, msg in msgs %}
+          <li class="flash {{ category }}">{{ msg }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
 
-<!-- Two-column layout: form(left) + sticky map(right) ===================== -->
-<div class="content-wrapper">
+  <!-- ============== FORM START ============== -->
+  <form method="POST" enctype="multipart/form-data">
+    {{ form.hidden_tag() }}
 
-    <!-- ===== Left: the form ===== -->
-    <section class="form-section">
-      <!-- STEP 1: POST + multipart for uploads; hidden_tag() adds CSRF -->
-      <form method="POST" enctype="multipart/form-data">
-        {{ form.hidden_tag() }}
+    <!-- Two-column layout: form (left) + map (right) -->
+    <div class="content-wrapper">
+
+      <!-- ================= LEFT COLUMN: the form ================= -->
+      <section class="form-section">
+
+        <!-- ========== CHANGED: NEW "Sighting Name" above Animal ========== -->
+        <div class="form-row">
+          <label for="sighting_name">{{ form.sighting_name.label }}</label>
+          {{ form.sighting_name(id="sighting_name", placeholder="e.g., Ridge 7 Buck") }}
+          {% if form.sighting_name.errors %}
+            <ul class="errors">{% for e in form.sighting_name.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
 
         <!-- Category → Animal (dynamic) -->
         <div class="form-row">
@@ -96,6 +149,7 @@ Uses Flask-WTF form rendering along with JavaScript powered map integration for 
           {% endif %}
         </div>
 
+        <!-- Animal -->
         <div class="form-row">
           <label for="animal">{{ form.animal.label }}</label>
           {{ form.animal(id="animal") }}
@@ -104,47 +158,70 @@ Uses Flask-WTF form rendering along with JavaScript powered map integration for 
           {% endif %}
         </div>
 
-        <!-- When -->
+        <!-- When (date/time) -->
         <div class="form-row">
           <label for="date_time">{{ form.date_time.label }}</label>
           {{ form.date_time(id="date_time") }}
         </div>
 
-        <!-- Weather bits -->
+        <!-- Weather (with datalist) -->
         <div class="form-row">
           <label for="weather">{{ form.weather.label }}</label>
-          {{ form.weather(id="weather", placeholder="e.g., clear") }}
+          {{ form.weather(id="weather", list="weatherOptions", placeholder="e.g., Clear") }}
+          <datalist id="weatherOptions">
+            <option value="Clear"><option value="Sunny"><option value="Partly Cloudy">
+            <option value="Mostly Cloudy"><option value="Overcast"><option value="Drizzle">
+            <option value="Rain"><option value="Light Rain"><option value="Thunderstorm">
+            <option value="Snow"><option value="Light Snow"><option value="Heavy Snow">
+            <option value="Sleet"><option value="Fog"><option value="Haze"><option value="Windy">
+          </datalist>
         </div>
 
+        <!-- Wind (with datalist) -->
         <div class="form-row">
           <label for="wind">{{ form.wind.label }}</label>
-          {{ form.wind(id="wind", placeholder="e.g., light breeze") }}
+          {{ form.wind(id="wind", list="windOptions", placeholder="e.g., Breeze") }}
+          <datalist id="windOptions">
+            <option value="Calm"><option value="Light"><option value="Breezy">
+            <option value="Windy"><option value="No Wind"><option value="Heavy Wind">
+          </datalist>
         </div>
 
+        <!-- Wind Speed -->
         <div class="form-row">
           <label for="wind_speed">{{ form.wind_speed.label }}</label>
           {{ form.wind_speed(id="wind_speed") }}
         </div>
 
+        <!-- Wind Direction (with datalist) -->
         <div class="form-row">
           <label for="wind_direction">{{ form.wind_direction.label }}</label>
-          {{ form.wind_direction(id="wind_direction", placeholder="e.g., NW") }}
+          {{ form.wind_direction(id="wind_direction", list="dirOptions", placeholder="e.g., NW") }}
+          <!-- CHANGED: fixed malformed datalist options -->
+          <datalist id="dirOptions">
+            <option value="N"><option value="NE"><option value="E"><option value="SE">
+            <option value="S"><option value="SW"><option value="W"><option value="NW">
+          </datalist>
         </div>
 
+        <!-- Humidity -->
         <div class="form-row">
           <label for="humidity">{{ form.humidity.label }}</label>
           {{ form.humidity(id="humidity") }}
         </div>
 
+        <!-- Temperature (with datalist) -->
         <div class="form-row">
           <label for="temperature">{{ form.temperature.label }}</label>
-          {{ form.temperature(id="temperature", placeholder="e.g., 45°F") }}
-        </div>
-
-        <!-- Location text -->
-        <div class="form-row">
-          <label for="location">{{ form.location.label }}</label>
-          {{ form.location(id="location", placeholder="Optional description (e.g., 'north meadow')") }}
+          {{ form.temperature(id="temperature", list="tempOptions", placeholder="e.g., 45°F") }}
+          <datalist id="tempOptions">
+            <option value="-35+"><option value="-30"><option value="-25"><option value="-20"><option value="-15">
+            <option value="-10"><option value="-5"><option value="0"><option value="5"><option value="10">
+            <option value="15"><option value="20"><option value="25"><option value="30"><option value="35">
+            <option value="40"><option value="45"><option value="50"><option value="55"><option value="60">
+            <option value="65"><option value="70"><option value="75"><option value="80"><option value="85">
+            <option value="90"><option value="95"><option value="100+">
+          </datalist>
         </div>
 
         <!-- Notes -->
@@ -168,39 +245,57 @@ Uses Flask-WTF form rendering along with JavaScript powered map integration for 
           <label for="photo">{{ form.photo.label }}</label>
           {{ form.photo(id="photo", accept=".jpg,.jpeg,.png,.gif") }}
           <div id="photoPreviewWrap" style="margin-top:8px;">
-            <img id="photoPreview" alt="Photo preview" style="display:none; max-width:200px; border:1px solid #ccc; border-radius:4px;">
+            <img id="photoPreview" alt="Photo preview"
+                 style="display:none; max-width:200px; border:1px solid #ccc; border-radius:4px;">
           </div>
         </div>
 
-        <!-- Submit -->
-        <div class="form-row">
-          {{ form.submit(class_="btn") }}
+      </section><!-- /section.form-section -->
+
+      <!-- ================= RIGHT COLUMN: map & live coordinates ================= -->
+      <aside class="map-section">
+        <h3>Pick Location on Map</h3>
+
+        <p class="muted" id="mapHint">Click "Choose on map", then click the map once to drop/move the pin</p>
+
+        <!-- CHANGED: Buttons ABOVE the map -->
+        <div class="map-actions" style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn btn-small" id="btnChoose">Choose on Map</button>
+          <button type="button" class="btn btn-small" id="btnLocate">Use My Location</button>
+          <button type="button" class="btn btn-small" id="btnClear">Clear Pin</button>
         </div>
-      </form>
-    </section>
 
-    <!-- ===== Right: sticky map & live coordinates ===== -->
-    <aside class="map-section">
-      <h3>Pick Location on Map</h3>
-      <p class="muted">Click the map to set latitude/longitude. Click again to move the marker.</p>
+        <!-- CHANGED: Location text field ABOVE the map -->
+        <div class="form-row">
+          <label for="location">{{ form.location.label }}</label>
+          {{ form.location(id="location", placeholder="Optional description (e.g., 'north meadow')") }}
+        </div>
 
-      <div id="map"></div>
+        <!-- The Map -->
+        <div id="map"></div>
 
-      <div class="form-row" style="margin-top:10px;">
-        <small>Lat: <span id="latDisplay">{{ form.lat.data or '' }}</span> |
-        Lng: <span id="lngDisplay">{{ form.lng.data or '' }}</span></small>
-      </div>
-    </aside>
+        <!-- Live lat/lng readout -->
+        <div class="form-row" style="margin-top:10px;">
+          <small>Lat: <span id="latDisplay">{{ form.lat.data or '' }}</span> |
+          Lng: <span id="lngDisplay">{{ form.lng.data or '' }}</span></small>
+        </div>
+      </aside><!-- /aside.map-section -->
 
-  </div><!-- /.content-wrapper -->
+    </div><!-- /.content-wrapper -->
 
-  <!-- Leaflet JS -->
+    <!-- CHANGED: shorter Submit after both columns -->
+    <div class="form-row" style="padding: 0 40px 40px;">
+      {{ form.submit(class_="btn btn-small") }}
+    </div>
+  </form>
+  <!-- ============== FORM END ============== -->
+
+  <!-- Leaflet JS (map logic) -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
   <script>
     // =========================================================
-    // STEP 2: Category → animal linkage
-    // - Populate the "Animal" select based on selected category
+    // Category → Animal linkage (dynamic options)
     // =========================================================
     const ANIMAL_CHOICES = {{ animal_choices|tojson }};
     const categorySelect = document.getElementById('animal_category');
@@ -222,69 +317,170 @@ Uses Flask-WTF form rendering along with JavaScript powered map integration for 
       renderAnimalsFor(e.target.value);
     });
 
-    // On load: if category already chosen (after validation error), restore animals
+    // Restore animals on load (e.g., after validation error)
     (function bootstrapAnimalSelect() {
-      const initialCat = categorySelect.value || "";
+      const initialCat    = categorySelect.value || "";
       const initialAnimal = {{ (form.animal.data or '')|tojson }};
       if (initialCat) renderAnimalsFor(initialCat, initialAnimal);
     })();
 
     // =========================================================
-    // STEP 3: Leaflet map to set coordinates
-    // - Writes to hidden inputs inside the form
-    // - Map is outside the form (right column), which is fine:
-    //   we update by element IDs.
+    // Leaflet map: draggable colored dot marker
+    // - Color tracks "Marker Color" input
+    // - CHANGED: permanent tooltip shows Sighting Name (if provided)
     // =========================================================
-    const latInput   = document.getElementById('lat');
-    const lngInput   = document.getElementById('lng');
-    const latDisplay = document.getElementById('latDisplay');
-    const lngDisplay = document.getElementById('lngDisplay');
+    const latInput     = document.getElementById('lat');
+    const lngInput     = document.getElementById('lng');
+    const latDisplay   = document.getElementById('latDisplay');
+    const lngDisplay   = document.getElementById('lngDisplay');
+    const colorInput   = document.getElementById('marker_color');
+    const nameInput    = document.getElementById('sighting_name'); // CHANGED: used to label the pin
 
-    const existingLat = parseFloat(latInput.value);
-    const existingLng = parseFloat(lngInput.value);
-    const startLat  = !isNaN(existingLat) ? existingLat : 45.0;
-    const startLng  = !isNaN(existingLng) ? existingLng : -93.0;
-    const startZoom = (!isNaN(existingLat) && !isNaN(existingLng)) ? 10 : 6;
+    const existingLat  = parseFloat(latInput.value);
+    const existingLng  = parseFloat(lngInput.value);
+    const startLat     = !isNaN(existingLat) ? existingLat : 45.0;
+    const startLng     = !isNaN(existingLng) ? existingLng : -93.0;
+    const startZoom    = (!isNaN(existingLat) && !isNaN(existingLng)) ? 10 : 6;
 
     const map = L.map('map').setView([startLat, startLng], startZoom);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     let marker = null;
-    if (!isNaN(existingLat) && !isNaN(existingLng)) {
-      marker = L.marker([existingLat, existingLng]).addTo(map);
+    let chooseMode = false;
+
+    function getMarkerColor() {
+      return (colorInput && colorInput.value) ? colorInput.value : '#3388ff';
     }
 
-    function setLatLng(lat, lng) {
+    function makeDotIcon(color) {
+      return L.divIcon({
+        className: '',
+        html: `<span class="pin-dot" style="background:${color}"></span>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+      });
+    }
+
+    function updateInputs(lat, lng) {
       latInput.value = lat.toFixed(6);
       lngInput.value = lng.toFixed(6);
       latDisplay.textContent = latInput.value;
       lngDisplay.textContent = lngInput.value;
-
-      if (marker) marker.setLatLng([lat, lng]);
-      else marker = L.marker([lat, lng]).addTo(map);
     }
 
+    function updateMarkerLabel() {
+      if (!marker) return;
+      const val = nameInput ? nameInput.value.trim() : "";
+      if (val) {
+        marker.bindTooltip(val, { permanent: true, direction: 'right', className: 'sighting-label' }).openTooltip();
+      } else {
+        marker.unbindTooltip();
+      }
+    }
+
+    function ensureMarker(lat, lng) {
+      const icon = makeDotIcon(getMarkerColor());
+      if (!marker) {
+        marker = L.marker([lat, lng], { draggable: true, icon }).addTo(map);
+
+        marker.on('drag', (e) => {
+          const p = e.target.getLatLng();
+          updateInputs(p.lat, p.lng);
+        });
+
+        marker.on('dragend', (e) => {
+          const p = e.target.getLatLng();
+          updateInputs(p.lat, p.lng);
+        });
+      } else {
+        marker.setLatLng([lat, lng]);
+        marker.setIcon(icon);
+      }
+      updateMarkerLabel(); // CHANGED: keep label in sync
+    }
+
+    function setLatLng(lat, lng) {
+      updateInputs(lat, lng);
+      ensureMarker(lat, lng);
+    }
+
+    if (!isNaN(existingLat) && !isNaN(existingLng)) {
+      ensureMarker(existingLat, existingLng);
+    }
+
+    if (colorInput) {
+      colorInput.addEventListener('input', () => {
+        if (marker) marker.setIcon(makeDotIcon(getMarkerColor()));
+      });
+    }
+
+    if (nameInput) {
+      nameInput.addEventListener('input', updateMarkerLabel);
+    }
+
+    // Click-to-place works only in "choose mode"
     map.on('click', (e) => {
+      if (!chooseMode) return;
       setLatLng(e.latlng.lat, e.latlng.lng);
+      chooseMode = false;
+      document.getElementById('mapHint').textContent =
+        'Click “Choose on Map” to pick another spot.';
     });
 
-    // =========================================================
-    // STEP 4: Show preview for uploaded photo
-    // =========================================================
-    const photoInput   = document.getElementById('photo');
-    const photoPreview = document.getElementById('photoPreview');
+    // Buttons
+    const btnChoose = document.getElementById('btnChoose');
+    const btnLocate = document.getElementById('btnLocate');
+    const btnClear  = document.getElementById('btnClear');
 
-    photoInput.addEventListener('change', () => {
-      const file = photoInput.files && photoInput.files[0];
-      if (!file) {
-        photoPreview.style.display = 'none';
-        photoPreview.src = '';
+    btnChoose.addEventListener('click', () => {
+      chooseMode = true;
+      document.getElementById('mapHint').textContent =
+        'Choose mode ON — click the map to drop/move the pin once.';
+    });
+
+    btnLocate.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your browser.');
         return;
       }
-      const url = URL.createObjectURL(file);
-      photoPreview.src = url;
-      photoPreview.style.display = 'block';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setLatLng(latitude, longitude);
+          map.setView([latitude, longitude], 14);
+        },
+        (err) => alert('Could not get your location: ' + err.message),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
     });
+
+    btnClear.addEventListener('click', () => {
+      if (marker) {
+        map.removeLayer(marker);
+        marker = null;
+      }
+      latInput.value = '';
+      lngInput.value = '';
+      latDisplay.textContent = '';
+      lngDisplay.textContent = '';
+    });
+
+    // Photo preview
+    const photoInput   = document.getElementById('photo');
+    const photoPreview = document.getElementById('photoPreview');
+    if (photoInput) {
+      photoInput.addEventListener('change', () => {
+        const file = photoInput.files && photoInput.files[0];
+        if (!file) {
+          photoPreview.style.display = 'none';
+          photoPreview.src = '';
+          return;
+        }
+        const url = URL.createObjectURL(file);
+        photoPreview.src = url;
+        photoPreview.style.display = 'block';
+      });
+    }
   </script>
 
 </body>
